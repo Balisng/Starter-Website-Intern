@@ -4,7 +4,7 @@
   "private": true,
   "description": "Fix Please - Electronic Repair Service & Management System",
   "scripts": {
-    "start:all": "bun -e \"await Promise.all([Bun.spawn(['bun','--cwd','backend','run','dev'],{stdio:['inherit','inherit','inherit']}).exited,Bun.spawn(['bun','--cwd','frontend','vite','--open'],{stdio:['inherit','inherit','inherit']}).exited])\"",
+    "start:all": "bun -e \"await Promise.all([Bun.spawn(['bun','run','dev'],{cwd:'backend',stdio:['inherit','inherit','inherit']}).exited,Bun.spawn(['bun','run','dev','--','--open'],{cwd:'frontend',stdio:['inherit','inherit','inherit']}).exited])\"",
     "backup": "tar -a -c -f backup.zip --exclude=node_modules --exclude=.git --exclude=backup.zip *"
   }
 }
