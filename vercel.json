@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd frontend && NODE_ENV=development bun install && bun add -d @typescript/typescript-linux-x64@7.0.2 --no-save && bun run build",
+  "buildCommand": "cd frontend && rm -f package-lock.json bun.lock && NODE_ENV=development bun install && bun run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
