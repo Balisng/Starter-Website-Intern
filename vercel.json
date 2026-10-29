@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd frontend && bun install --no-save --production=false && bun run build",
+  "buildCommand": "cd frontend && NODE_ENV=development bun install --no-save --force --os=linux --cpu=x64 && bun run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     {
