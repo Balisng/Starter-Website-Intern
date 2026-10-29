@@ -7,11 +7,12 @@ const connectionString =
   process.env.DATABASE_URL ||
   'postgresql://postgres:postgres@localhost:5432/repair_service_db';
 
-// Create Postgres.js client
+// Create Postgres.js client with serverless pooling & SSL support
 export const client = postgres(connectionString, {
-  max: 10,
+  max: process.env.VERCEL ? 1 : 10,
   idle_timeout: 20,
   connect_timeout: 10,
+  ssl: connectionString.includes('localhost') ? false : 'require',
 });
 
 // Create Drizzle ORM instance with typed schema
