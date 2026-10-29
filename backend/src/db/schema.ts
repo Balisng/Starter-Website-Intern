@@ -64,6 +64,8 @@ export const inboxMessages = pgTable('inbox_messages', {
   cm_id: serial('cm_id').primaryKey(),
   service_id: integer('service_id')
     .references(() => services.id, { onDelete: 'set null' }),
+  technician_id: integer('technician_id')
+    .references(() => users.u_id, { onDelete: 'set null' }), // Nullable foreign key to users.u_id
   cm_username: varchar('cm_username', { length: 100 }).notNull(),
   cm_cel: varchar('cm_cel', { length: 15 }).notNull(),
   cm_email: varchar('cm_email', { length: 100 }).notNull(),
@@ -80,6 +82,14 @@ export const inboxMessagesRelations = relations(inboxMessages, ({ one }) => ({
     fields: [inboxMessages.service_id],
     references: [services.id],
   }),
+  technician: one(users, {
+    fields: [inboxMessages.technician_id],
+    references: [users.u_id],
+  }),
+}));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  assignedMessages: many(inboxMessages),
 }));
 
 // ==========================================

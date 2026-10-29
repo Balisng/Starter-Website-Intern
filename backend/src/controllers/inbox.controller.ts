@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { Request, Response } from 'express';
 import { db } from '../config/db';
-import { categories, inboxMessages, services } from '../db/schema';
+import { categories, inboxMessages, services, users } from '../db/schema';
 import { CreateInboxMessageInput, UpdateInboxStatusInput } from '../validators/inbox.schema';
 
 /**
@@ -74,7 +74,7 @@ export async function createInboxMessage(req: Request, res: Response): Promise<v
  */
 export async function getAllInboxMessages(req: Request, res: Response): Promise<void> {
   try {
-    const { read_status, repair_status, search, category_id, service_id } = req.query;
+    const { read_status, repair_status, search, category_id, service_id, technician_id } = req.query;
 
     const conditions = [];
 
@@ -104,6 +104,15 @@ export async function getAllInboxMessages(req: Request, res: Response): Promise<
       }
     }
 
+    // กรองตามช่างผู้รับผิดชอบ
+    if (technician_id) {
+      if (technician_id === 'unassigned' || technician_id === 'null') {
+        conditions.push(sql`${inboxMessages.technician_id} IS NULL`);
+      } else if (technician_id !== 'all') {
+        conditions.push(eq(inboxMessages.technician_id, Number(technician_id)));
+      }
+    }
+
     // ค้นหาตามคำค้นหา (Case-insensitive)
     if (search && typeof search === 'string' && search.trim() !== '') {
       const keyword = `%${search.trim()}%`;
@@ -126,6 +135,9 @@ export async function getAllInboxMessages(req: Request, res: Response): Promise<
         service_image: services.service_image,
         category_id: categories.cg_id,
         category_name: categories.cg_name,
+        technician_id: inboxMessages.technician_id,
+        technician_name: users.u_name,
+        technician_surname: users.u_surname,
         cm_username: inboxMessages.cm_username,
         cm_cel: inboxMessages.cm_cel,
         cm_email: inboxMessages.cm_email,
@@ -139,6 +151,7 @@ export async function getAllInboxMessages(req: Request, res: Response): Promise<
       .from(inboxMessages)
       .leftJoin(services, eq(inboxMessages.service_id, services.id))
       .leftJoin(categories, eq(services.cg_id, categories.cg_id))
+      .leftJoin(users, eq(inboxMessages.technician_id, users.u_id))
       .orderBy(desc(inboxMessages.created_at));
 
     const result = conditions.length > 0
@@ -186,6 +199,9 @@ export async function getInboxMessageById(req: Request, res: Response): Promise<
         service_image: services.service_image,
         category_id: categories.cg_id,
         category_name: categories.cg_name,
+        technician_id: inboxMessages.technician_id,
+        technician_name: users.u_name,
+        technician_surname: users.u_surname,
         cm_username: inboxMessages.cm_username,
         cm_cel: inboxMessages.cm_cel,
         cm_email: inboxMessages.cm_email,
@@ -199,6 +215,7 @@ export async function getInboxMessageById(req: Request, res: Response): Promise<
       .from(inboxMessages)
       .leftJoin(services, eq(inboxMessages.service_id, services.id))
       .leftJoin(categories, eq(services.cg_id, categories.cg_id))
+      .leftJoin(users, eq(inboxMessages.technician_id, users.u_id))
       .where(eq(inboxMessages.cm_id, id))
       .limit(1);
 
@@ -278,9 +295,38 @@ export async function updateInboxMessageStatus(req: Request, res: Response): Pro
       }
     }
 
+    // จัดการ technician_id ตาม Requirement 4.2
+    // หากผู้ที่ล็อกอินเป็นช่าง (Technician) เมื่อกดบันทึก ให้ระบบผูกชื่อช่างคนนั้นเป็นผู้รับผิดชอบทันที
+    // หากเป็น Admin สามารถเลือกมอบหมายให้ช่างคนใดคนหนึ่ง หรือยกเลิกผู้รับผิดชอบ (null) ได้
+    let targetTechnicianId: number | null | undefined = existing.technician_id;
+    if (req.user?.role === 'technician') {
+      targetTechnicianId = req.user.u_id;
+    } else if (input.technician_id !== undefined) {
+      targetTechnicianId = input.technician_id;
+    }
+
+    if (targetTechnicianId) {
+      const [tech] = await db
+        .select()
+        .from(users)
+        .where(eq(users.u_id, targetTechnicianId))
+        .limit(1);
+
+      if (!tech) {
+        res.status(400).json({
+          success: false,
+          message: 'ไม่พบข้อมูลช่างที่ระบุในระบบ',
+        });
+        return;
+      }
+    }
+
     const [updated] = await db
       .update(inboxMessages)
-      .set(input)
+      .set({
+        ...input,
+        technician_id: targetTechnicianId,
+      })
       .where(eq(inboxMessages.cm_id, id))
       .returning();
 

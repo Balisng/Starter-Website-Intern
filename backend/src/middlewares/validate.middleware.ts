@@ -16,9 +16,18 @@ export function validateBody(schema: AnyZodObject) {
           message: err.message,
         }));
 
+        const detailedMessages = formattedErrors
+          .map((err) => err.message)
+          .filter(Boolean);
+
+        const summaryMessage =
+          detailedMessages.length > 0
+            ? detailedMessages.join(', ')
+            : 'ข้อมูลที่ส่งมาไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง';
+
         res.status(400).json({
           success: false,
-          message: 'ข้อมูลที่ส่งมาไม่ถูกต้อง (Validation Error)',
+          message: summaryMessage,
           errors: formattedErrors,
         });
         return;

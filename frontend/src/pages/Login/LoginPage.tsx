@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, User, Eye, EyeOff, ShieldCheck, ArrowRight, AlertCircle, Cpu } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, ArrowRight, AlertCircle, Cpu } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
@@ -71,7 +71,7 @@ export const LoginPage: React.FC = () => {
         {/* Login Card */}
         <div className="bg-white rounded-3xl p-7 sm:p-8 border border-slate-200/90 shadow-sm space-y-5">
           
-          {/* Default Account Hint (ตรงตาม Requirement: Admin 1234) */}
+          {/* Default Account Hint (ตรงตาม Requirement: Admin 1234)
           <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 space-y-1.5">
             <div className="flex items-center gap-1.5 font-bold text-slate-900">
               <ShieldCheck className="w-4 h-4 text-sky-600" />
@@ -81,7 +81,7 @@ export const LoginPage: React.FC = () => {
               <span>Username: <strong>Admin</strong></span>
               <span>Password: <strong>1234</strong></span>
             </div>
-          </div>
+          </div> */}
 
           {/* Error Banner */}
           {error && (

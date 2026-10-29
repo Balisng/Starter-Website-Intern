@@ -97,8 +97,36 @@ export const AdminServices: React.FC = () => {
     e.preventDefault();
     setFormError('');
 
-    if (!form.name.trim() || !form.detail.trim() || !form.service_image.trim()) {
-      setFormError('กรุณากรอกข้อมูลให้ครบทุกช่อง');
+    if (!form.name.trim()) {
+      setFormError('กรุณาระบุชื่อบริการ (ต้องมีอย่างน้อย 2 ตัวอักษร)');
+      return;
+    }
+    if (form.name.trim().length < 2) {
+      setFormError('ชื่อบริการสั้นเกินไป (ต้องมีอย่างน้อย 2 ตัวอักษร)');
+      return;
+    }
+    if (!form.cg_id || Number(form.cg_id) <= 0) {
+      setFormError('กรุณาเลือกหมวดหมู่บริการ');
+      return;
+    }
+    if (form.price === undefined || form.price === null || form.price === ('' as any) || isNaN(Number(form.price))) {
+      setFormError('กรุณาระบุราคาบริการเป็นตัวเลข');
+      return;
+    }
+    if (Number(form.price) < 0) {
+      setFormError('ราคาบริการต้องไม่ติดลบ (ต้องเป็น 0 บาทขึ้นไป)');
+      return;
+    }
+    if (!form.detail.trim()) {
+      setFormError('กรุณาระบุรายละเอียดบริการ (ต้องมีอย่างน้อย 5 ตัวอักษร)');
+      return;
+    }
+    if (form.detail.trim().length < 5) {
+      setFormError('รายละเอียดบริการสั้นเกินไป (ต้องมีอย่างน้อย 5 ตัวอักษร)');
+      return;
+    }
+    if (!form.service_image.trim()) {
+      setFormError('กรุณาระบุ URL รูปภาพบริการ');
       return;
     }
 

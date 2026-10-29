@@ -90,17 +90,62 @@ export const AdminUsers: React.FC = () => {
     setModalOpen(true);
   };
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 10);
+    let formatted = raw;
+    if (raw.length > 6) {
+      formatted = `${raw.slice(0, 3)}-${raw.slice(3, 6)}-${raw.slice(6)}`;
+    } else if (raw.length > 3) {
+      formatted = `${raw.slice(0, 3)}-${raw.slice(3)}`;
+    }
+    setForm((prev) => ({ ...prev, cel: formatted }));
+  };
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
-    if (!form.u_name.trim() || !form.u_surname.trim() || !form.cel.trim() || !form.email.trim()) {
-      setFormError('กรุณากรอกข้อมูลให้ครบถ้วน');
+    if (!form.u_name.trim() || !form.u_surname.trim()) {
+      setFormError('กรุณากรอกชื่อจริงและนามสกุล');
       return;
     }
 
-    if (!editingUser && (!form.username.trim() || !form.pwd)) {
-      setFormError('กรุณาระบุ Username และ Password สำหรับผู้ใช้ใหม่');
+    if (!editingUser) {
+      if (!form.username.trim() || form.username.trim().length < 3) {
+        setFormError('Username ต้องมีอย่างน้อย 3 ตัวอักษร');
+        return;
+      }
+      if (!form.pwd || form.pwd.length < 4) {
+        setFormError('Password ต้องมีอย่างน้อย 4 ตัวอักษร');
+        return;
+      }
+    } else if (form.pwd && form.pwd.length < 4) {
+      setFormError('Password ใหม่ต้องมีอย่างน้อย 4 ตัวอักษร');
+      return;
+    }
+
+    // Phone Validation
+    const cleanCel = form.cel.replace(/\D/g, '');
+    if (!cleanCel) {
+      setFormError('กรุณากรอกเบอร์โทรศัพท์');
+      return;
+    }
+    if (!/^0[689]\d{8}$/.test(cleanCel)) {
+      setFormError('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (06x, 08x, 09x ครบ 10 หลัก)');
+      return;
+    }
+
+    // Email Validation
+    const emailRegex =
+      /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9-]+\.)*(gmail\.com|hotmail\.com|outlook\.com|yahoo\.com|icloud\.com|[a-zA-Z0-9-]+\.(com|co\.th|ac\.th|or\.th|go\.th))$/i;
+    if (!form.email.trim()) {
+      setFormError('กรุณากรอกอีเมล');
+      return;
+    }
+    if (!emailRegex.test(form.email.trim())) {
+      setFormError(
+        'รูปแบบอีเมลไม่ถูกต้อง (อนุญาตเฉพาะ @gmail.com, @hotmail.com, @outlook.com, @yahoo.com, @icloud.com หรือโดเมนมาตรฐาน .com, .co.th, .ac.th)'
+      );
       return;
     }
 
@@ -525,9 +570,9 @@ export const AdminUsers: React.FC = () => {
                     type="tel"
                     required
                     value={form.cel}
-                    onChange={(e) => setForm({ ...form, cel: e.target.value })}
-                    placeholder="081-234-5678"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+                    onChange={handlePhoneChange}
+                    placeholder="0xx-xxx-xxxx"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 font-mono"
                   />
                 </div>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Wrench,
@@ -21,10 +21,18 @@ import { useService } from '../../context/ServiceContext';
 import { ImageLightbox } from '../../components/ui/ImageLightbox';
 import type { Service } from '../../types';
 
+// Regex สำหรับตรวจสอบอีเมลมาตรฐานและผู้ให้บริการชั้นนำ
+const EMAIL_REGEX =
+  /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9-]+\.)*(gmail\.com|hotmail\.com|outlook\.com|yahoo\.com|icloud\.com|[a-zA-Z0-9-]+\.(com|co\.th|ac\.th|or\.th|go\.th))$/i;
+
 export const AboutPage: React.FC = () => {
   const { selectedService, selectService, clearSelectedService } = useService();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Refs for smooth scrolling
+  const errorAlertRef = useRef<HTMLDivElement>(null);
+  const successSectionRef = useRef<HTMLDivElement>(null);
 
   // Services list for dropdown
   const [servicesList, setServicesList] = useState<Service[]>([]);
@@ -42,9 +50,11 @@ export const AboutPage: React.FC = () => {
     cm_image: '',
   });
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [toastAlert, setToastAlert] = useState<string | null>(null);
 
   // Fetch active services for the dropdown
   useEffect(() => {
@@ -93,12 +103,84 @@ export const AboutPage: React.FC = () => {
       ? servicesList.find((s) => s.id === selectedServiceId) || selectedService
       : null;
 
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // กรองเฉพาะตัวเลข และจำกัดความยาวไม่เกิน 10 หลัก
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 10);
+    // Format อัตโนมัติเป็น 0xx-xxx-xxxx
+    let formatted = raw;
+    if (raw.length > 6) {
+      formatted = `${raw.slice(0, 3)}-${raw.slice(3, 6)}-${raw.slice(6)}`;
+    } else if (raw.length > 3) {
+      formatted = `${raw.slice(0, 3)}-${raw.slice(3)}`;
+    }
+    setFormData((prev) => ({ ...prev, cm_cel: formatted }));
+    if (fieldErrors.cm_cel) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next.cm_cel;
+        return next;
+      });
+    }
+  };
+
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.cm_username.trim()) {
+      errors.cm_username = 'กรุณากรอกชื่อ-นามสกุลของผู้ส่งซ่อม';
+    } else if (formData.cm_username.trim().length < 2) {
+      errors.cm_username = 'ชื่อ-นามสกุลต้องมีอย่างน้อย 2 ตัวอักษร';
+    }
+
+    const cleanCel = formData.cm_cel.replace(/\D/g, '');
+    if (!cleanCel) {
+      errors.cm_cel = 'กรุณากรอกเบอร์โทรศัพท์ติดต่อ';
+    } else if (!/^0[689]\d{8}$/.test(cleanCel)) {
+      errors.cm_cel = 'กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (06x, 08x, 09x ครบ 10 หลัก)';
+    }
+
+    const emailTrimmed = formData.cm_email.trim();
+    if (!emailTrimmed) {
+      errors.cm_email = 'กรุณากรอกอีเมลติดต่อ';
+    } else if (!EMAIL_REGEX.test(emailTrimmed)) {
+      errors.cm_email =
+        'รูปแบบอีเมลไม่ถูกต้อง (อนุญาตเฉพาะ @gmail.com, @hotmail.com, @outlook.com, @yahoo.com, @icloud.com หรือโดเมนมาตรฐาน .com, .co.th, .ac.th)';
+    }
+
+    if (!formData.cm_symptom.trim()) {
+      errors.cm_symptom = 'กรุณาระบุอาการเสียของสินค้า';
+    } else if (formData.cm_symptom.trim().length < 5) {
+      errors.cm_symptom = 'กรุณาระบุอาการเสียอย่างน้อย 5 ตัวอักษร';
+    }
+
+    return errors;
+  };
+
+  // เลื่อนจอขึ้นด้านบนสุดของส่วนข้อความสำเร็จอัตโนมัติ (แก้ปัญหาหน้าจอค้างอยู่ที่เดิม)
+  useEffect(() => {
+    if (submitSuccess && successSectionRef.current) {
+      successSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [submitSuccess]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+    setFieldErrors({});
 
-    if (!formData.cm_username || !formData.cm_cel || !formData.cm_email || !formData.cm_symptom) {
-      setErrorMessage('กรุณากรอกข้อมูลให้ครบถ้วนทุกช่องที่มีเครื่องหมาย *');
+    // 1. ตรวจสอบความถูกต้องของแบบฟอร์ม (Validation Error)
+    const errors = validateForm();
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstError = Object.values(errors)[0];
+      setErrorMessage(firstError);
+
+      // เลื่อนหน้าจอกลับไปยังจุดแสดงข้อความแจ้งเตือนหรือช่องที่กรอกผิดโดยอัตโนมัติ
+      setTimeout(() => {
+        if (errorAlertRef.current) {
+          errorAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
       return;
     }
 
@@ -120,6 +202,7 @@ export const AboutPage: React.FC = () => {
 
       if (res.success) {
         setSubmitSuccess(res.data);
+        setToastAlert('ส่งคำขอซ่อมสำเร็จแล้ว');
         setFormData({
           cm_username: '',
           cm_cel: '',
@@ -127,11 +210,23 @@ export const AboutPage: React.FC = () => {
           cm_symptom: '',
           cm_image: '',
         });
+        setFieldErrors({});
+        setErrorMessage('');
       } else {
         setErrorMessage(res.message || 'ส่งข้อมูลไม่สำเร็จ');
+        setTimeout(() => {
+          if (errorAlertRef.current) {
+            errorAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 50);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'เกิดข้อผิดพลาดในการส่งข้อมูล');
+      setTimeout(() => {
+        if (errorAlertRef.current) {
+          errorAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
     } finally {
       setSubmitting(false);
     }
@@ -279,7 +374,10 @@ export const AboutPage: React.FC = () => {
 
             {submitSuccess ? (
               // SUCCESS CONFIRMATION
-              <div className="p-8 rounded-3xl bg-emerald-50/80 border border-emerald-200 text-center space-y-3.5 animate-modal">
+              <div
+                ref={successSectionRef}
+                className="p-8 rounded-3xl bg-emerald-50/80 border border-emerald-200 text-center space-y-3.5 animate-modal scroll-mt-24"
+              >
                 <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white shadow-xs flex items-center justify-center mx-auto">
                   <Check className="w-7 h-7 stroke-[3]" />
                 </div>
@@ -406,16 +504,22 @@ export const AboutPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Error Banner */}
+                {/* Error Banner with ref for smooth scrolling */}
                 {errorMessage && (
-                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{errorMessage}</span>
+                  <div
+                    ref={errorAlertRef}
+                    className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-start gap-2.5 shadow-2xs animate-fade scroll-mt-24"
+                  >
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-rose-900">กรุณาตรวจสอบข้อมูลที่กรอก:</p>
+                      <p className="font-medium mt-0.5">{errorMessage}</p>
+                    </div>
                   </div>
                 )}
 
                 {/* Form Inputs */}
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} noValidate className="space-y-4">
                   
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {/* Customer Name */}
@@ -425,12 +529,27 @@ export const AboutPage: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        required
                         value={formData.cm_username}
-                        onChange={(e) => setFormData({ ...formData, cm_username: e.target.value })}
+                        onChange={(e) => {
+                          setFormData({ ...formData, cm_username: e.target.value });
+                          if (fieldErrors.cm_username) {
+                            setFieldErrors((prev) => {
+                              const n = { ...prev };
+                              delete n.cm_username;
+                              return n;
+                            });
+                          }
+                        }}
                         placeholder="เช่น สมชาย ใจดี"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
+                          fieldErrors.cm_username
+                            ? 'bg-rose-50/50 border-rose-400 ring-1 ring-rose-400/50 focus:ring-rose-400 focus:border-rose-500'
+                            : 'bg-slate-50 border-slate-200 focus:ring-sky-500/20 focus:border-sky-500'
+                        }`}
                       />
+                      {fieldErrors.cm_username && (
+                        <p className="text-[11px] text-rose-600 font-medium">{fieldErrors.cm_username}</p>
+                      )}
                     </div>
 
                     {/* Customer Phone */}
@@ -440,12 +559,18 @@ export const AboutPage: React.FC = () => {
                       </label>
                       <input
                         type="tel"
-                        required
                         value={formData.cm_cel}
-                        onChange={(e) => setFormData({ ...formData, cm_cel: e.target.value })}
-                        placeholder="เช่น 081-234-5678"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                        onChange={handlePhoneChange}
+                        placeholder="0xx-xxx-xxxx"
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 transition-all font-mono ${
+                          fieldErrors.cm_cel
+                            ? 'bg-rose-50/50 border-rose-400 ring-1 ring-rose-400/50 focus:ring-rose-400 focus:border-rose-500'
+                            : 'bg-slate-50 border-slate-200 focus:ring-sky-500/20 focus:border-sky-500'
+                        }`}
                       />
+                      {fieldErrors.cm_cel && (
+                        <p className="text-[11px] text-rose-600 font-medium">{fieldErrors.cm_cel}</p>
+                      )}
                     </div>
 
                     {/* Customer Email */}
@@ -455,12 +580,27 @@ export const AboutPage: React.FC = () => {
                       </label>
                       <input
                         type="email"
-                        required
                         value={formData.cm_email}
-                        onChange={(e) => setFormData({ ...formData, cm_email: e.target.value })}
-                        placeholder="เช่น somchai@example.com"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                        onChange={(e) => {
+                          setFormData({ ...formData, cm_email: e.target.value });
+                          if (fieldErrors.cm_email) {
+                            setFieldErrors((prev) => {
+                              const n = { ...prev };
+                              delete n.cm_email;
+                              return n;
+                            });
+                          }
+                        }}
+                        placeholder="เช่น somchai@gmail.com"
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
+                          fieldErrors.cm_email
+                            ? 'bg-rose-50/50 border-rose-400 ring-1 ring-rose-400/50 focus:ring-rose-400 focus:border-rose-500'
+                            : 'bg-slate-50 border-slate-200 focus:ring-sky-500/20 focus:border-sky-500'
+                        }`}
                       />
+                      {fieldErrors.cm_email && (
+                        <p className="text-[11px] text-rose-600 font-medium">{fieldErrors.cm_email}</p>
+                      )}
                     </div>
                   </div>
 
@@ -471,12 +611,27 @@ export const AboutPage: React.FC = () => {
                     </label>
                     <textarea
                       rows={3}
-                      required
                       value={formData.cm_symptom}
-                      onChange={(e) => setFormData({ ...formData, cm_symptom: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, cm_symptom: e.target.value });
+                        if (fieldErrors.cm_symptom) {
+                          setFieldErrors((prev) => {
+                            const n = { ...prev };
+                            delete n.cm_symptom;
+                            return n;
+                          });
+                        }
+                      }}
                       placeholder="ระบุอาการเสีย เช่น จอแตกสัมผัสไม่ได้ หรือเครื่องเปิดไม่ติดมีเสียงร้องเตือน ฯลฯ"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
+                        fieldErrors.cm_symptom
+                          ? 'bg-rose-50/50 border-rose-400 ring-1 ring-rose-400/50 focus:ring-rose-400 focus:border-rose-500'
+                          : 'bg-slate-50 border-slate-200 focus:ring-sky-500/20 focus:border-sky-500'
+                      }`}
                     ></textarea>
+                    {fieldErrors.cm_symptom && (
+                      <p className="text-[11px] text-rose-600 font-medium">{fieldErrors.cm_symptom}</p>
+                    )}
                   </div>
 
                   {/* Image URL */}
@@ -521,6 +676,20 @@ export const AboutPage: React.FC = () => {
         </section>
 
       </div>
+
+      {/* Toast Alert Notification */}
+      {toastAlert && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-emerald-600 text-white shadow-2xl animate-fade">
+          <CheckCircle2 className="w-5 h-5 text-emerald-100 shrink-0" />
+          <span className="text-xs font-bold">{toastAlert}</span>
+          <button
+            onClick={() => setToastAlert(null)}
+            className="ml-2 text-white/80 hover:text-white cursor-pointer font-bold text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 };

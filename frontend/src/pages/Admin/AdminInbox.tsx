@@ -14,23 +14,30 @@ import {
   ZoomIn,
   Wrench,
   AlertCircle,
+  UserCheck,
+  UserX,
+  UserCog,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
-import type { Category, InboxMessage, Service } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import type { Category, InboxMessage, Service, User } from '../../types';
 import { ImageLightbox } from '../../components/ui/ImageLightbox';
 
 export const AdminInbox: React.FC = () => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [repairFilter, setRepairFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [search, setSearch] = useState<string>('');
 
-  // Categories and Services metadata for filtering and technician assignment
+  // Categories, Services and Technicians metadata for filtering and technician assignment
   const [categories, setCategories] = useState<Category[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [technicians, setTechnicians] = useState<User[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<number | 'all'>('all');
   const [serviceFilter, setServiceFilter] = useState<string>('all'); // 'all' | 'unassigned' | string(service_id)
+  const [technicianFilter, setTechnicianFilter] = useState<string>('all'); // 'all' | 'unassigned' | string(u_id)
 
   // Lightbox State
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
@@ -39,26 +46,40 @@ export const AdminInbox: React.FC = () => {
   const [selectedMsg, setSelectedMsg] = useState<InboxMessage | null>(null);
   const [updateStatus, setUpdateStatus] = useState<'pending' | 'completed'>('pending');
   const [updateServiceId, setUpdateServiceId] = useState<number | null>(null);
+  const [updateTechnicianId, setUpdateTechnicianId] = useState<number | null>(null);
   const [updateComment, setUpdateComment] = useState<string>('');
   const [serviceValidationError, setServiceValidationError] = useState<string>('');
   const [updating, setUpdating] = useState<boolean>(false);
+  const [toastAlert, setToastAlert] = useState<string | null>(null);
+
+  // Auto-hide Toast Alert
+  useEffect(() => {
+    if (toastAlert) {
+      const timer = setTimeout(() => setToastAlert(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastAlert]);
 
   // Delete message confirmation
   const [deleteTarget, setDeleteTarget] = useState<InboxMessage | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
 
-  // Fetch Categories & Services on mount
+  // Fetch Categories, Services & Technicians on mount
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [catRes, srvRes] = await Promise.all([
+        const [catRes, srvRes, userRes] = await Promise.all([
           apiRequest<Category[]>('/categories'),
           apiRequest<Service[]>('/services'),
+          apiRequest<User[]>('/users'),
         ]);
         if (catRes.success && catRes.data) setCategories(catRes.data);
         if (srvRes.success && srvRes.data) setServices(srvRes.data);
+        if (userRes.success && userRes.data) {
+          setTechnicians(userRes.data.filter((u) => u.role === 'technician'));
+        }
       } catch (err) {
-        console.error('Error fetching categories or services:', err);
+        console.error('Error fetching categories, services, or technicians:', err);
       }
     };
     fetchMetadata();
@@ -72,6 +93,7 @@ export const AdminInbox: React.FC = () => {
       if (repairFilter !== 'all') params.repair_status = repairFilter;
       if (categoryFilter !== 'all') params.category_id = categoryFilter;
       if (serviceFilter !== 'all') params.service_id = serviceFilter;
+      if (technicianFilter !== 'all') params.technician_id = technicianFilter;
       if (search.trim()) params.search = search.trim();
 
       const res = await apiRequest<InboxMessage[]>('/inbox', { params });
@@ -87,7 +109,7 @@ export const AdminInbox: React.FC = () => {
 
   useEffect(() => {
     fetchMessages();
-  }, [readFilter, repairFilter, categoryFilter, serviceFilter]);
+  }, [readFilter, repairFilter, categoryFilter, serviceFilter, technicianFilter]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +121,7 @@ export const AdminInbox: React.FC = () => {
     setSelectedMsg(msg);
     setUpdateStatus(msg.repair_status);
     setUpdateServiceId(msg.service_id ?? null);
+    setUpdateTechnicianId(msg.technician_id ?? null);
     setUpdateComment(msg.comment || '');
     setServiceValidationError('');
 
@@ -108,6 +131,7 @@ export const AdminInbox: React.FC = () => {
       if (res.success && res.data) {
         setSelectedMsg(res.data);
         setUpdateServiceId(res.data.service_id ?? null);
+        setUpdateTechnicianId(res.data.technician_id ?? null);
         // Update local list state
         setMessages((prev) =>
           prev.map((m) => (m.cm_id === msg.cm_id ? { ...m, is_read: true } : m))
@@ -118,7 +142,7 @@ export const AdminInbox: React.FC = () => {
     }
   };
 
-  // Update Status, Service & Comment (PATCH /api/inbox/:id/status)
+  // Update Status, Service, Technician & Comment (PATCH /api/inbox/:id/status)
   const handleUpdateStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMsg) return;
@@ -134,33 +158,30 @@ export const AdminInbox: React.FC = () => {
 
     setUpdating(true);
     try {
+      const payload: any = {
+        repair_status: updateStatus,
+        comment: updateComment.trim() || null,
+        service_id: updateServiceId || null,
+      };
+
+      // หากเป็น Admin ให้อนุญาตกำหนดช่างผู้รับผิดชอบ หรือยกเลิก (null) ได้
+      // หากเป็นช่าง Backend จะผูก u_id ของช่างที่ล็อกอินให้อัตโนมัติ
+      if (user?.role === 'admin') {
+        payload.technician_id = updateTechnicianId;
+      }
+
       const res = await apiRequest<{ success: boolean; data: any; message?: string }>(
         `/inbox/${selectedMsg.cm_id}/status`,
         {
           method: 'PATCH',
-          body: JSON.stringify({
-            repair_status: updateStatus,
-            comment: updateComment.trim() || null,
-            service_id: updateServiceId || null,
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
       if (res.success) {
-        const chosenService = services.find((s) => s.id === updateServiceId);
-        setSelectedMsg((prev) =>
-          prev
-            ? {
-                ...prev,
-                repair_status: updateStatus,
-                comment: updateComment.trim() || null,
-                service_id: updateServiceId || null,
-                service_name: chosenService ? chosenService.name : prev.service_name,
-                service_price: chosenService ? chosenService.price : prev.service_price,
-                category_name: chosenService ? chosenService.cg_name : prev.category_name,
-              }
-            : null
-        );
+        // Requirement 1.2: แสดงแจ้งเตือนว่า "บันทึกข้อมูลสำเร็จ" และสั่งปิดหน้าต่าง modal อัตโนมัติ พร้อมอัปเดตข้อมูลตารางทันที
+        setToastAlert('บันทึกข้อมูลสำเร็จ');
+        setSelectedMsg(null);
         fetchMessages();
       }
     } catch (err: any) {
@@ -317,7 +338,7 @@ export const AdminInbox: React.FC = () => {
 
         </div>
 
-        {/* Row 2: Category and Service Filters for Technicians */}
+        {/* Row 2: Category, Service and Technician Filters */}
         <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-3 text-xs">
           <div className="flex items-center gap-1.5 text-slate-300 font-bold">
             <Wrench className="w-3.5 h-3.5 text-sky-400" />
@@ -351,7 +372,7 @@ export const AdminInbox: React.FC = () => {
             <select
               value={serviceFilter}
               onChange={(e) => setServiceFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 cursor-pointer max-w-[280px] truncate"
+              className="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 cursor-pointer max-w-[240px] truncate"
             >
               <option value="all">บริการทั้งหมด</option>
               <option value="unassigned">⚠️ ยังไม่ระบุบริการ (ไม่แน่ใจอาการ / null)</option>
@@ -363,15 +384,34 @@ export const AdminInbox: React.FC = () => {
             </select>
           </div>
 
-          {(categoryFilter !== 'all' || serviceFilter !== 'all') && (
+          {/* Technician Filter Dropdown */}
+          <div className="flex items-center gap-2">
+            <label className="text-slate-400 font-medium">ช่างผู้รับผิดชอบ:</label>
+            <select
+              value={technicianFilter}
+              onChange={(e) => setTechnicianFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 cursor-pointer max-w-[200px] truncate"
+            >
+              <option value="all">ช่างทั้งหมด</option>
+              <option value="unassigned">⚠️ ยังไม่มีผู้รับผิดชอบ</option>
+              {technicians.map((t) => (
+                <option key={t.u_id} value={t.u_id.toString()}>
+                  ช่าง {t.u_name} {t.u_surname}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {(categoryFilter !== 'all' || serviceFilter !== 'all' || technicianFilter !== 'all') && (
             <button
               onClick={() => {
                 setCategoryFilter('all');
                 setServiceFilter('all');
+                setTechnicianFilter('all');
               }}
               className="px-2.5 py-1 text-[11px] rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors cursor-pointer"
             >
-              ล้างตัวกรองช่าง
+              ล้างตัวกรอง
             </button>
           )}
         </div>
@@ -386,13 +426,14 @@ export const AdminInbox: React.FC = () => {
           <div className="py-16 text-center text-xs text-slate-500 font-normal">ไม่พบข้อความแจ้งซ่อมในเงื่อนไขนี้</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[750px]">
+            <table className="w-full text-left text-xs min-w-[850px]">
               <thead className="bg-slate-950/80 border-b border-slate-800 text-slate-400">
                 <tr>
                   <th className="py-3 px-4 font-semibold w-12 text-center">สถานะ</th>
                   <th className="py-3 px-4 font-semibold">ลูกค้า & การติดต่อ</th>
                   <th className="py-3 px-4 font-semibold">บริการที่เลือก & ราคา</th>
                   <th className="py-3 px-4 font-semibold">อาการเสีย</th>
+                  <th className="py-3 px-4 font-semibold">ช่างผู้รับผิดชอบ</th>
                   <th className="py-3 px-4 font-semibold">สถานะงานซ่อม</th>
                   <th className="py-3 px-4 font-semibold">เวลาที่แจ้งซ่อม</th>
                   <th className="py-3 px-4 font-semibold text-right">การจัดการ</th>
@@ -455,6 +496,25 @@ export const AdminInbox: React.FC = () => {
                     {/* Symptoms */}
                     <td className="py-3.5 px-4 max-w-xs">
                       <p className="text-slate-400 line-clamp-1">{msg.cm_symptom}</p>
+                    </td>
+
+                    {/* Technician In-Charge */}
+                    <td className="py-3.5 px-4">
+                      {msg.technician_name ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="p-1 rounded-md bg-sky-950/80 border border-sky-800/60 text-sky-400 shrink-0">
+                            <Wrench className="w-3 h-3" />
+                          </span>
+                          <span className="font-semibold text-slate-200 text-xs whitespace-nowrap">
+                            ช่าง {msg.technician_name} {msg.technician_surname || ''}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-800/80 text-slate-400 border border-slate-700/60 whitespace-nowrap">
+                          <UserX className="w-3 h-3 text-slate-500" />
+                          <span>ยังไม่มีผู้รับผิดชอบ</span>
+                        </span>
+                      )}
                     </td>
 
                     {/* Repair Status */}
@@ -542,8 +602,8 @@ export const AdminInbox: React.FC = () => {
               </button>
             </div>
 
-            {/* Customer & Ticket Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs">
+            {/* Customer, Service & Technician Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs">
               <div className="space-y-1">
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">ข้อมูลลูกค้า</p>
                 <p className="font-bold text-white text-sm">{selectedMsg.cm_username}</p>
@@ -592,6 +652,29 @@ export const AdminInbox: React.FC = () => {
                     แจ้งเมื่อ: {new Date(selectedMsg.created_at).toLocaleString('th-TH')}
                   </span>
                 </p>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">ช่างผู้รับผิดชอบงาน</p>
+                {selectedMsg.technician_name ? (
+                  <div className="p-2.5 rounded-xl bg-sky-950/40 border border-sky-800/50 text-sky-300">
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <UserCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                      <span>ช่าง {selectedMsg.technician_name} {selectedMsg.technician_surname || ''}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">ผู้รับผิดชอบงานซ่อมรายการนี้</p>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-amber-950/30 border border-amber-800/40 text-amber-300">
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <UserX className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>ยังไม่มีผู้รับผิดชอบ</span>
+                    </div>
+                    <p className="text-[10px] text-amber-400/80 mt-1">
+                      สามารถมอบหมายหรือรับงานได้จากฟอร์มด้านล่าง
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -683,6 +766,59 @@ export const AdminInbox: React.FC = () => {
                   💡 สามารถเลือกหรือเปลี่ยนบริการที่ซ่อมจริงได้เสมอ โดยเฉพาะเคสที่ลูกค้าเลือกไม่แน่ใจอาการ เพื่อให้ระบบดึงราคาไปคำนวณรายรับใน Dashboard
                 </p>
               </div>
+
+              {/* Technician Assignment for Admin / Auto-assign info for Technician */}
+              {user?.role === 'admin' ? (
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-300 flex items-center gap-1.5">
+                      <UserCog className="w-3.5 h-3.5 text-sky-400" />
+                      <span>มอบหมายช่างผู้รับผิดชอบ (Technician Assignment):</span>
+                    </label>
+                    <span className="text-[11px] text-slate-400 font-normal">
+                      เฉพาะ Admin มอบหมายงาน
+                    </span>
+                  </div>
+                  <select
+                    value={updateTechnicianId ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : null;
+                      setUpdateTechnicianId(val);
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 cursor-pointer"
+                  >
+                    <option value="">-- ยังไม่มอบหมายช่าง (ยังไม่มีผู้รับผิดชอบ) --</option>
+                    {technicians.map((t) => (
+                      <option key={t.u_id} value={t.u_id}>
+                        ช่าง {t.u_name} {t.u_surname} ({t.cel})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400">
+                    💡 ผู้ดูแลระบบสามารถมอบหมายช่างเพื่อติดตามงาน หรือเว้นว่างไว้ให้ช่างเป็นผู้กดรับงานเอง
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs space-y-1">
+                  <div className="flex items-center gap-2 font-bold">
+                    <UserCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span className="text-white">การรับผิดชอบงานของช่าง:</span>
+                  </div>
+                  {selectedMsg.technician_id === user?.u_id ? (
+                    <p className="text-emerald-400 font-medium text-[11px]">
+                      ✓ คุณ (ช่าง {user?.u_name} {user?.u_surname}) เป็นผู้รับผิดชอบงานซ่อมรายการนี้อยู่แล้ว
+                    </p>
+                  ) : !selectedMsg.technician_id ? (
+                    <p className="text-amber-300 font-medium text-[11px]">
+                      ⚡ รายการนี้ยังไม่มีผู้รับผิดชอบ เมื่อคุณกด "บันทึกสถานะและความเห็น" ระบบจะผูกชื่อของคุณ (ช่าง {user?.u_name} {user?.u_surname}) เป็นผู้รับผิดชอบโดยอัตโนมัติ
+                    </p>
+                  ) : (
+                    <p className="text-slate-300 text-[11px]">
+                      ℹ️ รายการนี้เดิมมอบหมายให้ ช่าง {selectedMsg.technician_name} {selectedMsg.technician_surname || ''} (หากคุณกดบันทึก ระบบจะปรับให้คุณเป็นผู้รับผิดชอบล่าสุดทันที)
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Status Select */}
               <div className="space-y-1 text-xs">
@@ -794,6 +930,20 @@ export const AdminInbox: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast Alert Notification */}
+      {toastAlert && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-emerald-600 text-white shadow-2xl animate-fade">
+          <CheckCircle2 className="w-5 h-5 text-emerald-100 shrink-0" />
+          <span className="text-xs font-bold">{toastAlert}</span>
+          <button
+            onClick={() => setToastAlert(null)}
+            className="ml-2 text-white/80 hover:text-white cursor-pointer font-bold text-sm"
+          >
+            ✕
+          </button>
         </div>
       )}
 

@@ -83,3 +83,4 @@
 | **repair_status** | varchar(20) | สถานะการซ่อม ('pending' = รอซ่อม, 'completed' = ซ่อมเสร็จแล้ว) |
 | **comment** | varchar(500) | ช่องแสดงความคิดเห็นของช่าง/Admin (Nullable) |
 | **created_at** | timestamp | วันและเวลาที่ส่งข้อความ (ใช้คำนวณยอดรายสัปดาห์/เดือน) |
+
