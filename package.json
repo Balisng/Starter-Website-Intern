@@ -13,6 +13,8 @@
     "backup": "tar -a -c -f backup.zip --exclude=node_modules --exclude=.git --exclude=backup.zip *"
   },
   "dependencies": {
+    "@neon/config": "^1.9.6",
+    "@neon/env": "^1.6.6",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

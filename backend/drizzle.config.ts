@@ -6,7 +6,7 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/repair_service_db',
+    url: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/repair_service_db',
   },
   verbose: true,
   strict: true,
