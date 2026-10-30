@@ -76,6 +76,7 @@ export function App() {
 
             {/* 2. Admin Portal Routes (with Role Protection & Admin Workspace Sidebar) */}
             <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="services" element={<AdminServices />} />
               <Route path="inbox" element={<AdminInbox />} />
