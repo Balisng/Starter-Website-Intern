@@ -1,12 +1,20 @@
 import { relations } from 'drizzle-orm';
 import {
   boolean,
+  index,
   integer,
+  pgEnum,
   pgTable,
   serial,
   timestamp,
   varchar,
 } from 'drizzle-orm/pg-core';
+
+// ==========================================
+// 0. PostgreSQL Enums
+// ==========================================
+export const userRoleEnum = pgEnum('user_role', ['admin', 'technician']);
+export const repairStatusEnum = pgEnum('repair_status', ['pending', 'completed']);
 
 // ==========================================
 // 1. Table: Categories (หมวดหมู่บริการ)
@@ -23,17 +31,24 @@ export const categoriesRelations = relations(categories, ({ many }) => ({
 // ==========================================
 // 2. Table: Services (รายการบริการซ่อม)
 // ==========================================
-export const services = pgTable('services', {
-  id: serial('id').primaryKey(),
-  cg_id: integer('cg_id')
-    .notNull()
-    .references(() => categories.cg_id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 100 }).notNull(),
-  detail: varchar('detail', { length: 500 }).notNull(),
-  price: integer('price').notNull(),
-  status: boolean('status').default(true).notNull(),
-  service_image: varchar('service_image', { length: 255 }).notNull(),
-});
+export const services = pgTable(
+  'services',
+  {
+    id: serial('id').primaryKey(),
+    cg_id: integer('cg_id')
+      .notNull()
+      .references(() => categories.cg_id, { onDelete: 'restrict' }),
+    name: varchar('name', { length: 100 }).notNull(),
+    detail: varchar('detail', { length: 500 }).notNull(),
+    price: integer('price').notNull(),
+    status: boolean('status').default(true).notNull(),
+    service_image: varchar('service_image', { length: 255 }).notNull(),
+  },
+  (table) => ({
+    cgIdIdx: index('idx_services_cg_id').on(table.cg_id),
+    statusIdx: index('idx_services_status').on(table.status),
+  })
+);
 
 export const servicesRelations = relations(services, ({ one, many }) => ({
   category: one(categories, {
@@ -46,36 +61,52 @@ export const servicesRelations = relations(services, ({ one, many }) => ({
 // ==========================================
 // 3. Table: Users (ผู้ใช้งานระบบหลังบ้าน)
 // ==========================================
-export const users = pgTable('users', {
-  u_id: serial('u_id').primaryKey(),
-  username: varchar('username', { length: 50 }).notNull().unique(),
-  pwd: varchar('pwd', { length: 255 }).notNull(),
-  u_name: varchar('u_name', { length: 50 }).notNull(),
-  u_surname: varchar('u_surname', { length: 50 }).notNull(),
-  role: varchar('role', { length: 20 }).default('technician').notNull(), // 'admin' | 'technician'
-  cel: varchar('cel', { length: 15 }).notNull(),
-  email: varchar('email', { length: 100 }).notNull(),
-});
+export const users = pgTable(
+  'users',
+  {
+    u_id: serial('u_id').primaryKey(),
+    username: varchar('username', { length: 50 }).notNull().unique(),
+    pwd: varchar('pwd', { length: 255 }).notNull(),
+    u_name: varchar('u_name', { length: 50 }).notNull(),
+    u_surname: varchar('u_surname', { length: 50 }).notNull(),
+    role: userRoleEnum('role').default('technician').notNull(), // 'admin' | 'technician'
+    cel: varchar('cel', { length: 15 }).notNull(),
+    email: varchar('email', { length: 100 }).notNull(),
+  },
+  (table) => ({
+    roleIdx: index('idx_users_role').on(table.role),
+  })
+);
 
 // ==========================================
 // 4. Table: Inbox_Messages (กล่องข้อความและรายการแจ้งซ่อม)
 // ==========================================
-export const inboxMessages = pgTable('inbox_messages', {
-  cm_id: serial('cm_id').primaryKey(),
-  service_id: integer('service_id')
-    .references(() => services.id, { onDelete: 'set null' }),
-  technician_id: integer('technician_id')
-    .references(() => users.u_id, { onDelete: 'set null' }), // Nullable foreign key to users.u_id
-  cm_username: varchar('cm_username', { length: 100 }).notNull(),
-  cm_cel: varchar('cm_cel', { length: 15 }).notNull(),
-  cm_email: varchar('cm_email', { length: 100 }).notNull(),
-  cm_symptom: varchar('cm_symptom', { length: 500 }).notNull(),
-  cm_image: varchar('cm_image', { length: 255 }), // Nullable
-  is_read: boolean('is_read').default(false).notNull(),
-  repair_status: varchar('repair_status', { length: 20 }).default('pending').notNull(), // 'pending' | 'completed'
-  comment: varchar('comment', { length: 500 }), // Nullable
-  created_at: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-});
+export const inboxMessages = pgTable(
+  'inbox_messages',
+  {
+    cm_id: serial('cm_id').primaryKey(),
+    service_id: integer('service_id').references(() => services.id, { onDelete: 'set null' }),
+    technician_id: integer('technician_id').references(() => users.u_id, { onDelete: 'set null' }),
+    cm_username: varchar('cm_username', { length: 100 }).notNull(),
+    cm_cel: varchar('cm_cel', { length: 15 }).notNull(),
+    cm_email: varchar('cm_email', { length: 100 }).notNull(),
+    cm_symptom: varchar('cm_symptom', { length: 500 }).notNull(),
+    cm_image: varchar('cm_image', { length: 255 }), // Nullable
+    is_read: boolean('is_read').default(false).notNull(),
+    repair_status: repairStatusEnum('repair_status').default('pending').notNull(), // 'pending' | 'completed'
+    final_price: integer('final_price'), // ราคาสุทธิที่บันทึกไว้ตอนปิดงานซ่อมเสร็จ (ป้องกันยอดเพี้ยนเมื่อแก้/ลบบริการภายหลัง)
+    completed_at: timestamp('completed_at', { mode: 'date' }), // วันเวลาที่ปิดงานซ่อมเสร็จจริง
+    comment: varchar('comment', { length: 500 }), // Nullable
+    created_at: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+  },
+  (table) => ({
+    serviceIdIdx: index('idx_inbox_service_id').on(table.service_id),
+    technicianIdIdx: index('idx_inbox_technician_id').on(table.technician_id),
+    repairStatusIdx: index('idx_inbox_repair_status').on(table.repair_status),
+    isReadIdx: index('idx_inbox_is_read').on(table.is_read),
+    createdAtIdx: index('idx_inbox_created_at').on(table.created_at),
+  })
+);
 
 export const inboxMessagesRelations = relations(inboxMessages, ({ one }) => ({
   service: one(services, {

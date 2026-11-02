@@ -21,7 +21,6 @@ import { useService } from '../../context/ServiceContext';
 import { ImageLightbox } from '../../components/ui/ImageLightbox';
 import type { Service } from '../../types';
 
-// Regex สำหรับตรวจสอบอีเมลมาตรฐานและผู้ให้บริการชั้นนำ
 const EMAIL_REGEX =
   /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9-]+\.)*(gmail\.com|hotmail\.com|outlook\.com|yahoo\.com|icloud\.com|[a-zA-Z0-9-]+\.(com|co\.th|ac\.th|or\.th|go\.th))$/i;
 
@@ -56,7 +55,6 @@ export const AboutPage: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [toastAlert, setToastAlert] = useState<string | null>(null);
 
-  // Fetch active services for the dropdown
   useEffect(() => {
     apiRequest<Service[]>('/services')
       .then((res) => {
@@ -67,14 +65,12 @@ export const AboutPage: React.FC = () => {
       .catch((err) => console.error('Error fetching services for dropdown:', err));
   }, []);
 
-  // Sync selectedService from context if arriving from Services page
   useEffect(() => {
     if (selectedService) {
       setSelectedServiceId(selectedService.id);
     }
   }, [selectedService]);
 
-  // Scroll to #contact if hash is present
   useEffect(() => {
     if (location.hash === '#contact') {
       const el = document.getElementById('contact');
@@ -104,9 +100,7 @@ export const AboutPage: React.FC = () => {
       : null;
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // กรองเฉพาะตัวเลข และจำกัดความยาวไม่เกิน 10 หลัก
     const raw = e.target.value.replace(/\D/g, '').slice(0, 10);
-    // Format อัตโนมัติเป็น 0xx-xxx-xxxx
     let formatted = raw;
     if (raw.length > 6) {
       formatted = `${raw.slice(0, 3)}-${raw.slice(3, 6)}-${raw.slice(6)}`;
@@ -156,7 +150,6 @@ export const AboutPage: React.FC = () => {
     return errors;
   };
 
-  // เลื่อนจอขึ้นด้านบนสุดของส่วนข้อความสำเร็จอัตโนมัติ (แก้ปัญหาหน้าจอค้างอยู่ที่เดิม)
   useEffect(() => {
     if (submitSuccess && successSectionRef.current) {
       successSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -168,14 +161,12 @@ export const AboutPage: React.FC = () => {
     setErrorMessage('');
     setFieldErrors({});
 
-    // 1. ตรวจสอบความถูกต้องของแบบฟอร์ม (Validation Error)
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       const firstError = Object.values(errors)[0];
       setErrorMessage(firstError);
 
-      // เลื่อนหน้าจอกลับไปยังจุดแสดงข้อความแจ้งเตือนหรือช่องที่กรอกผิดโดยอัตโนมัติ
       setTimeout(() => {
         if (errorAlertRef.current) {
           errorAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -233,7 +224,7 @@ export const AboutPage: React.FC = () => {
   };
 
   return (
-    <div className="py-10 sm:py-14 bg-[#f8fafc] min-h-screen text-slate-800">
+    <div className="py-8 sm:py-12 bg-[#f8fafc] min-h-screen text-slate-800">
       
       {/* Image Lightbox */}
       <ImageLightbox
@@ -242,28 +233,28 @@ export const AboutPage: React.FC = () => {
         onClose={() => setLightboxImage(null)}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16 sm:space-y-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 sm:space-y-16">
         
         {/* ======================================================== */}
         {/* 1. ABOUT ME / SHOP SECTION */}
         {/* ======================================================== */}
-        <section className="space-y-12">
+        <section className="space-y-8 sm:space-y-10">
           
           <div className="text-center max-w-3xl mx-auto">
-            <span className="text-xs font-bold tracking-wider uppercase text-sky-800 bg-sky-50 px-3.5 py-1.5 rounded-full border border-sky-200 inline-flex items-center gap-1.5 mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-rose-500" />
+            <span className="text-[11px] font-bold tracking-wider uppercase text-sky-800 bg-sky-50 px-3 py-1 rounded-full border border-sky-200 inline-flex items-center gap-1.5 mb-2">
+              <Sparkles className="w-3.5 h-3.5 text-sky-600" />
               <span>เกี่ยวกับศูนย์บริการ Fix Please (About Me)</span>
             </span>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mt-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
               ความมุ่งมั่นและมาตรฐานงานซ่อมระดับมืออาชีพ
             </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-3 leading-relaxed font-normal">
+            <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed font-normal">
               Fix Please ก่อตั้งขึ้นจากความหลงใหลในเทคโนโลยีและวงจรอิเล็กทรอนิกส์ เรามุ่งเน้นการให้บริการซ่อมบำรุงที่โปร่งใส วิเคราะห์ปัญหาตรงจุด ไม่ยัดเยียดการเปลี่ยนอะไหล่ที่ไม่จำเป็น
             </p>
           </div>
 
           {/* Core Values Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               {
                 icon: Award,
@@ -275,28 +266,28 @@ export const AboutPage: React.FC = () => {
                 icon: Wrench,
                 title: 'เครื่องมือระดับแล็บ',
                 desc: 'กล้องไมโครสโคปความแม่นยำสูง เครื่องเป่าลมร้อนควบคุมอุณหภูมิมาตรฐาน',
-                iconColor: 'text-rose-600 bg-rose-50 border-rose-100',
+                iconColor: 'text-indigo-600 bg-indigo-50 border-indigo-100',
               },
               {
                 icon: ShieldCheck,
                 title: 'รับประกันงานซ่อม 90 วัน',
                 desc: 'อุ่นใจหลังซ่อมด้วยการรับประกันชิ้นส่วนและบริการ หากมีปัญหาดูแลฟรี',
-                iconColor: 'text-sky-600 bg-sky-50 border-sky-100',
+                iconColor: 'text-emerald-600 bg-emerald-50 border-emerald-100',
               },
               {
                 icon: CheckCircle2,
                 title: 'ปลอดภัยต่อข้อมูล',
                 desc: 'รักษาความลับข้อมูลส่วนบุคคลในเครื่องของลูกค้า 100% ไม่เปิดดูหรือคัดลอก',
-                iconColor: 'text-rose-600 bg-rose-50 border-rose-100',
+                iconColor: 'text-sky-600 bg-sky-50 border-sky-100',
               },
             ].map((val, idx) => {
               const Icon = val.icon;
               return (
                 <div
                   key={idx}
-                  className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-sm hover:-translate-y-1 transition-all duration-200 space-y-2.5"
+                  className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-sm transition-all duration-200 space-y-2"
                 >
-                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border ${val.iconColor}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${val.iconColor}`}>
                     <Icon className="w-5 h-5" />
                   </div>
                   <h3 className="text-sm font-bold text-slate-900">
@@ -311,21 +302,21 @@ export const AboutPage: React.FC = () => {
           </div>
 
           {/* Shop Details */}
-          <div className="p-7 sm:p-8 rounded-3xl bg-white border border-slate-200/80 shadow-2xs grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
-            <div className="lg:col-span-2 space-y-3.5">
-              <h3 className="text-lg sm:text-xl font-bold text-slate-900">
+          <div className="p-5 sm:p-7 rounded-2xl bg-white border border-slate-200/80 shadow-2xs grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+            <div className="lg:col-span-2 space-y-3">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900">
                 ยินดีต้อนรับสู่หน้าร้านและศูนย์รับบริการ
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
                 ท่านสามารถนำอุปกรณ์เดินทางเข้ามาให้ช่างตรวจเช็คอาการได้โดยตรง หรือส่งผ่านบริการขนส่งพัสดุ (Flash, Kerry, ไปรษณีย์ไทย) เรามีทีมงานคอยรับและบันทึกข้อมูลเข้าระบบพร้อมถ่ายภาพสภาพเครื่องส่งให้ท่านตรวจสอบ
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1 text-xs text-slate-600">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs text-slate-600">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-sky-600 shrink-0" />
                   <span>123/45 ถนนสุขุมวิท คลองเตย กทม. 10110</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <PhoneCall className="w-4 h-4 text-rose-600 shrink-0" />
+                  <PhoneCall className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>081-234-5678 (สายด่วนช่าง)</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -339,8 +330,8 @@ export const AboutPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col items-center justify-center text-center space-y-2">
-              <div className="w-11 h-11 rounded-full bg-white shadow-2xs flex items-center justify-center text-sky-600">
+            <div className="p-5 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col items-center justify-center text-center space-y-1.5">
+              <div className="w-10 h-10 rounded-full bg-white shadow-2xs flex items-center justify-center text-sky-600">
                 <MapPin className="w-5 h-5" />
               </div>
               <p className="text-xs font-bold text-slate-900">แผนที่ศูนย์บริการ Fix Please</p>
@@ -352,44 +343,42 @@ export const AboutPage: React.FC = () => {
 
         {/* ======================================================== */}
         {/* 2. CONTACT US / REPAIR INTAKE SECTION */}
-        {/* รองรับ 2 ช่องทาง: เข้าผ่าน About Me โดยตรง หรือเลือกมาจากหน้า Services */}
         {/* ======================================================== */}
-        <section id="contact" className="scroll-mt-24 pt-4">
+        <section id="contact" className="scroll-mt-20 pt-2">
           
-          <div className="p-7 sm:p-10 rounded-3xl bg-white border border-slate-200/90 shadow-sm relative overflow-hidden">
+          <div className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm relative overflow-hidden">
             
             {/* Section Header */}
-            <div className="max-w-2xl mb-8">
-              <span className="text-xs font-bold tracking-wider uppercase text-rose-700 bg-rose-50 px-3 py-1 rounded-full border border-rose-200 inline-flex items-center gap-1.5 mb-2">
+            <div className="max-w-2xl mb-6">
+              <span className="text-[11px] font-bold tracking-wider uppercase text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200 inline-flex items-center gap-1.5 mb-2">
                 <Send className="w-3.5 h-3.5" />
                 <span>Contact Us (แจ้งนัดหมายส่งซ่อม)</span>
               </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mt-1">
                 ส่งคำขอแจ้งซ่อมและนัดหมายช่าง
               </h2>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1.5 font-normal">
+              <p className="text-xs sm:text-sm text-slate-600 mt-1 font-normal">
                 กรอกรายละเอียดอาการเสียและข้อมูลติดต่อ ช่างประจำศูนย์จะติดต่อกลับเพื่อประเมินและนัดหมายเวลาซ่อมโดยเร็ว
               </p>
             </div>
 
             {submitSuccess ? (
-              // SUCCESS CONFIRMATION
               <div
                 ref={successSectionRef}
-                className="p-8 rounded-3xl bg-emerald-50/80 border border-emerald-200 text-center space-y-3.5 animate-modal scroll-mt-24"
+                className="p-6 sm:p-8 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-center space-y-3 animate-modal scroll-mt-24"
               >
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white shadow-xs flex items-center justify-center mx-auto">
-                  <Check className="w-7 h-7 stroke-[3]" />
+                <div className="w-11 h-11 rounded-xl bg-emerald-500 text-white shadow-xs flex items-center justify-center mx-auto">
+                  <Check className="w-6 h-6 stroke-[3]" />
                 </div>
                 <div className="max-w-md mx-auto space-y-1">
-                  <h3 className="text-lg font-bold text-emerald-950">
+                  <h3 className="text-base sm:text-lg font-bold text-emerald-950">
                     ส่งข้อมูลแจ้งซ่อมสำเร็จเรียบร้อย!
                   </h3>
                   <p className="text-xs text-emerald-800 font-normal">
                     รหัสคำขอซ่อม: <strong className="font-mono">#{submitSuccess.cm_id}</strong> | ช่างได้รับข้อมูลแล้วและจะติดต่อกลับผ่านเบอร์โทร <strong className="font-mono">{submitSuccess.cm_cel}</strong> โดยเร็ว
                   </p>
                 </div>
-                <div className="pt-2 flex justify-center gap-3">
+                <div className="pt-2 flex flex-wrap justify-center gap-2.5">
                   <button
                     onClick={() => {
                       setSubmitSuccess(null);
@@ -409,11 +398,10 @@ export const AboutPage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              // ACTIVE CONTACT FORM
-              <div className="space-y-6">
+              <div className="space-y-5">
                 
                 {/* Service Selection Dropdown */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <Wrench className="w-4 h-4 text-sky-600" />
@@ -446,7 +434,7 @@ export const AboutPage: React.FC = () => {
 
                   {/* Dynamic Service Status Card */}
                   {currentChosenService ? (
-                    <div className="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3 animate-fade">
+                    <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade">
                       <div className="flex items-center gap-3">
                         <div
                           onClick={() => setLightboxImage({ src: currentChosenService.service_image, alt: currentChosenService.name })}
@@ -467,15 +455,15 @@ export const AboutPage: React.FC = () => {
                         </div>
 
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-100">
                               {currentChosenService.cg_name || 'บริการที่เลือก'}
                             </span>
-                            <span className="text-xs font-bold text-rose-600 font-mono">
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono">
                               ฿{currentChosenService.price.toLocaleString()} บาท
                             </span>
                           </div>
-                          <p className="text-xs font-bold text-slate-800 mt-0.5">
+                          <p className="text-xs font-bold text-slate-800 mt-1">
                             {currentChosenService.name}
                           </p>
                         </div>
@@ -484,7 +472,7 @@ export const AboutPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleServiceChange('unspecified')}
-                        className="text-[11px] font-medium text-slate-500 hover:text-rose-600 hover:underline shrink-0"
+                        className="text-[11px] font-medium text-slate-500 hover:text-sky-600 hover:underline self-start sm:self-auto shrink-0 cursor-pointer"
                       >
                         เปลี่ยนเป็นไม่แน่ใจอาการ
                       </button>
@@ -504,11 +492,11 @@ export const AboutPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Error Banner with ref for smooth scrolling */}
+                {/* Error Banner */}
                 {errorMessage && (
                   <div
                     ref={errorAlertRef}
-                    className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-start gap-2.5 shadow-2xs animate-fade scroll-mt-24"
+                    className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-start gap-2.5 shadow-2xs animate-fade scroll-mt-24"
                   >
                     <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                     <div>
@@ -679,9 +667,11 @@ export const AboutPage: React.FC = () => {
 
       {/* Toast Alert Notification */}
       {toastAlert && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-emerald-600 text-white shadow-2xl animate-fade">
-          <CheckCircle2 className="w-5 h-5 text-emerald-100 shrink-0" />
-          <span className="text-xs font-bold">{toastAlert}</span>
+        <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-50 flex items-center justify-between sm:justify-start gap-3 px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-2xl animate-fade">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-100 shrink-0" />
+            <span className="text-xs font-bold">{toastAlert}</span>
+          </div>
           <button
             onClick={() => setToastAlert(null)}
             className="ml-2 text-white/80 hover:text-white cursor-pointer font-bold text-sm"

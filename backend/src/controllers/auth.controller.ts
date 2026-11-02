@@ -3,10 +3,10 @@ import { eq } from 'drizzle-orm';
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../config/db';
+import { JWT_SECRET } from '../config/env';
 import { users } from '../db/schema';
 import { AuthUserPayload } from '../types/auth';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'repair_service_secret_key_2026_change_in_production';
 const COOKIE_NAME = 'auth_token';
 
 /**

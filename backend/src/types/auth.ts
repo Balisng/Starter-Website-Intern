@@ -1,7 +1,7 @@
 export interface AuthUserPayload {
   u_id: number;
   username: string;
-  role: string; // 'admin' | 'technician'
+  role: 'admin' | 'technician';
   u_name: string;
   u_surname: string;
   email: string;

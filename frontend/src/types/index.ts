@@ -28,7 +28,9 @@ export interface InboxMessage {
   cm_id: number;
   service_id: number | null;
   service_name?: string;
-  service_price?: number;
+  service_price?: number | null;
+  final_price?: number | null;
+  completed_at?: string | null;
   service_image?: string;
   category_id?: number;
   category_name?: string;
@@ -57,6 +59,7 @@ export interface TechnicianJob {
   service_price: number;
   repair_status: 'pending' | 'completed';
   created_at: string;
+  completed_at?: string | null;
 }
 
 export interface TechnicianPerformance {
@@ -100,6 +103,7 @@ export interface RecentActivity {
   technician_name?: string | null;
   technician_surname?: string | null;
   created_at: string;
+  completed_at?: string | null;
 }
 
 export interface DashboardData {
@@ -109,4 +113,3 @@ export interface DashboardData {
   recentActivities: RecentActivity[];
   technicianPerformance: TechnicianPerformance[];
 }
-

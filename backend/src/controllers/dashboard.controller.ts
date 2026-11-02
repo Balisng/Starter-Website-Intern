@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { Request, Response } from 'express';
 import { db } from '../config/db';
 import { categories, inboxMessages, services, users } from '../db/schema';
@@ -6,8 +6,8 @@ import { categories, inboxMessages, services, users } from '../db/schema';
 /**
  * GET /api/dashboard
  * ดึงข้อมูลสถิติภาพรวมสำหรับหน้า Admin Dashboard
- * รองรับ Query: ?period=all | weekly | monthly (Requirement 3)
- * พร้อมคำนวณสถิติการปฏิบัติงานของช่างแต่ละคน (Requirement 4.3)
+ * รองรับ Query: ?period=all | weekly | monthly
+ * คำนวณรายรับจาก final_price และเวลาปิดงานจริง (completed_at) เพื่อป้องกันยอดย้อนหลังเพี้ยนเมื่อแก้ไขราคาหรือลบบริการ
  */
 export async function getDashboardStats(req: Request, res: Response): Promise<void> {
   try {
@@ -30,15 +30,17 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
     }
 
     // 1. ดึงข้อมูลรายการที่ซ่อมเสร็จแล้ว (repair_status = 'completed')
+    // ใช้ leftJoin และดึง final_price เป็นหลัก เพื่อไม่ให้ยอดย้อนหลังหายหรือเพี้ยนแม้บริการจะถูกแก้ราคาหรือลบไปแล้ว
     const completedItems = await db
       .select({
         cm_id: inboxMessages.cm_id,
-        price: services.price,
+        price: sql<number>`coalesce(${inboxMessages.final_price}, ${services.price}, 0)::int`,
+        completed_at: inboxMessages.completed_at,
         created_at: inboxMessages.created_at,
         technician_id: inboxMessages.technician_id,
       })
       .from(inboxMessages)
-      .innerJoin(services, eq(inboxMessages.service_id, services.id))
+      .leftJoin(services, eq(inboxMessages.service_id, services.id))
       .where(eq(inboxMessages.repair_status, 'completed'));
 
     let totalRevenue = 0;
@@ -51,7 +53,8 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       const price = item.price || 0;
       totalRevenue += price;
 
-      const itemDate = new Date(item.created_at);
+      // ใช้วันเวลาที่ปิดงานจริง (completed_at) เป็นหลัก หากไม่มีให้ fallback ไปที่ created_at
+      const itemDate = new Date(item.completed_at || item.created_at);
       if (itemDate >= sevenDaysAgo) {
         weeklyRevenue += price;
       }
@@ -90,21 +93,25 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       .where(eq(users.role, 'technician'));
     const techniciansCount = techniciansCountResult?.count || 0;
 
-    // 4. ข้อมูลจำแนกตามหมวดหมู่สินค้า (คำนวณตามช่วงเวลาที่เลือก)
+    // 4. ข้อมูลจำแนกตามหมวดหมู่สินค้า (คำนวณตามช่วงเวลาที่เลือก โดยใช้ final_price และ completed_at)
     const categoryConditions = [eq(inboxMessages.repair_status, 'completed')];
     if (startDate) {
-      categoryConditions.push(gte(inboxMessages.created_at, startDate));
+      categoryConditions.push(
+        sql`coalesce(${inboxMessages.completed_at}, ${inboxMessages.created_at}) >= ${startDate.toISOString()}`
+      );
     }
+
+    const categoryNameExpr = sql<string>`coalesce(${categories.cg_name}, 'อื่นๆ / บริการที่ยกเลิก')`;
 
     const categoryStats = await db
       .select({
-        category_name: categories.cg_name,
+        category_name: categoryNameExpr,
         count: sql<number>`count(${inboxMessages.cm_id})::int`,
-        revenue: sql<number>`coalesce(sum(${services.price}), 0)::int`,
+        revenue: sql<number>`coalesce(sum(coalesce(${inboxMessages.final_price}, ${services.price}, 0)), 0)::int`,
       })
       .from(inboxMessages)
-      .innerJoin(services, eq(inboxMessages.service_id, services.id))
-      .innerJoin(categories, eq(services.cg_id, categories.cg_id))
+      .leftJoin(services, eq(inboxMessages.service_id, services.id))
+      .leftJoin(categories, eq(services.cg_id, categories.cg_id))
       .where(and(...categoryConditions))
       .groupBy(categories.cg_name);
 
@@ -114,11 +121,12 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
         cm_id: inboxMessages.cm_id,
         cm_username: inboxMessages.cm_username,
         service_name: sql<string>`coalesce(${services.name}, 'ปรึกษาช่าง / ประเมินภายหลัง')`,
-        price: sql<number>`coalesce(${services.price}, 0)::int`,
+        price: sql<number>`coalesce(${inboxMessages.final_price}, ${services.price}, 0)::int`,
         repair_status: inboxMessages.repair_status,
         technician_name: users.u_name,
         technician_surname: users.u_surname,
         created_at: inboxMessages.created_at,
+        completed_at: inboxMessages.completed_at,
       })
       .from(inboxMessages)
       .leftJoin(services, eq(inboxMessages.service_id, services.id))
@@ -126,7 +134,7 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       .orderBy(desc(inboxMessages.created_at))
       .limit(6);
 
-    // 6. สถิติและประวัติการซ่อมของช่างแต่ละคน (Requirement 4.3)
+    // 6. สถิติและประวัติการซ่อมของช่างแต่ละคน
     const techniciansList = await db
       .select({
         u_id: users.u_id,
@@ -140,7 +148,7 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       .where(eq(users.role, 'technician'))
       .orderBy(users.u_name);
 
-    // ดึงงานทั้งหมดที่ผูกกับช่าง เพื่อนำมาสรุปสถิติและประวัติ
+    // ดึงงานทั้งหมดที่ผูกกับช่าง เพื่อนำมาสรุปสถิติและประวัติ (ใช้ final_price เป็นหลัก)
     const assignedJobs = await db
       .select({
         cm_id: inboxMessages.cm_id,
@@ -150,9 +158,10 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
         cm_symptom: inboxMessages.cm_symptom,
         service_id: inboxMessages.service_id,
         service_name: services.name,
-        service_price: sql<number>`coalesce(${services.price}, 0)::int`,
+        service_price: sql<number>`coalesce(${inboxMessages.final_price}, ${services.price}, 0)::int`,
         repair_status: inboxMessages.repair_status,
         created_at: inboxMessages.created_at,
+        completed_at: inboxMessages.completed_at,
       })
       .from(inboxMessages)
       .leftJoin(services, eq(inboxMessages.service_id, services.id))

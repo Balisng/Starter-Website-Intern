@@ -50,7 +50,7 @@ export const AdminServices: React.FC = () => {
     try {
       const [catRes, srvRes] = await Promise.all([
         apiRequest<Category[]>('/categories'),
-        apiRequest<Service[]>('/services'), // get all services (both active and inactive)
+        apiRequest<Service[]>('/services'),
       ]);
       if (catRes.success && catRes.data) setCategories(catRes.data);
       if (srvRes.success && srvRes.data) setServices(srvRes.data);
@@ -133,7 +133,6 @@ export const AdminServices: React.FC = () => {
     setFormSubmitting(true);
     try {
       if (editingService) {
-        // Update Service (PUT /api/services/:id)
         const res = await apiRequest(`/services/${editingService.id}`, {
           method: 'PUT',
           body: JSON.stringify({
@@ -149,7 +148,6 @@ export const AdminServices: React.FC = () => {
           setFormError(res.message || 'แก้ไขบริการไม่สำเร็จ');
         }
       } else {
-        // Create Service (POST /api/services)
         const res = await apiRequest('/services', {
           method: 'POST',
           body: JSON.stringify({
@@ -199,7 +197,7 @@ export const AdminServices: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 text-slate-100">
+    <div className="space-y-5 text-slate-100">
       
       {/* Lightbox Modal */}
       <ImageLightbox
@@ -209,13 +207,13 @@ export const AdminServices: React.FC = () => {
       />
 
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-1 rounded-lg bg-sky-950/70 border border-sky-800/60 text-sky-400">
+            <span className="p-1.5 rounded-xl bg-sky-950/70 border border-sky-800/60 text-sky-400">
               <Wrench className="w-4 h-4" />
             </span>
-            <h1 className="text-2xl font-black text-white tracking-tight">
+            <h1 className="text-lg sm:text-xl font-black text-white tracking-tight">
               จัดการรายการบริการ (Manage Services)
             </h1>
           </div>
@@ -226,21 +224,21 @@ export const AdminServices: React.FC = () => {
 
         <button
           onClick={openAddModal}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer self-start sm:self-auto"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" />
           <span>เพิ่มบริการใหม่ (Add Service)</span>
         </button>
       </div>
 
-      {/* Filter and Search Bar (Dark Mode) */}
-      <div className="p-4 rounded-3xl bg-slate-900 border border-slate-800 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Filter and Search Bar */}
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         
         {/* Category Filters */}
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => setCategoryFilter('all')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
               categoryFilter === 'all'
                 ? 'bg-sky-600 text-white shadow-xs font-bold'
                 : 'bg-slate-950/60 text-slate-400 hover:text-white border border-slate-800'
@@ -252,7 +250,7 @@ export const AdminServices: React.FC = () => {
             <button
               key={c.cg_id}
               onClick={() => setCategoryFilter(c.cg_id)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
                 categoryFilter === c.cg_id
                   ? 'bg-sky-600 text-white shadow-xs font-bold'
                   : 'bg-slate-950/60 text-slate-400 hover:text-white border border-slate-800'
@@ -264,7 +262,7 @@ export const AdminServices: React.FC = () => {
         </div>
 
         {/* Search Input */}
-        <div className="relative w-full sm:w-72">
+        <div className="relative w-full sm:w-64">
           <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
@@ -277,122 +275,191 @@ export const AdminServices: React.FC = () => {
 
       </div>
 
-      {/* Services Table (Dark Mode) */}
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 shadow-xs overflow-hidden">
+      {/* Services List */}
+      <div className="rounded-2xl bg-slate-900 border border-slate-800 shadow-xs overflow-hidden">
         {loading ? (
-          <div className="py-20 text-center text-xs text-slate-500">กำลังโหลดรายการบริการ...</div>
+          <div className="py-16 text-center text-xs text-slate-500">กำลังโหลดรายการบริการ...</div>
         ) : filteredServices.length === 0 ? (
           <div className="py-16 text-center text-xs text-slate-500 font-normal">ไม่พบบริการที่ตรงกับเงื่อนไข</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[700px]">
-              <thead className="bg-slate-950/80 border-b border-slate-800 text-slate-400">
-                <tr>
-                  <th className="py-3 px-4 font-semibold">รูปภาพ</th>
-                  <th className="py-3 px-4 font-semibold">ชื่อบริการ & รายละเอียด</th>
-                  <th className="py-3 px-4 font-semibold">หมวดหมู่</th>
-                  <th className="py-3 px-4 font-semibold">ราคา (Price)</th>
-                  <th className="py-3 px-4 font-semibold">สถานะบริการ</th>
-                  <th className="py-3 px-4 font-semibold text-right">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {filteredServices.map((service) => (
-                  <tr key={service.id} className="hover:bg-slate-800/40 transition-colors">
-                    
-                    {/* Thumbnail with Lightbox */}
-                    <td className="py-3 px-4 w-20">
-                      <div
-                        onClick={() => setLightboxImage({ src: service.service_image, alt: service.name })}
-                        className="relative group cursor-zoom-in w-14 h-14 rounded-xl overflow-hidden border border-slate-800 bg-slate-950"
-                      >
-                        <img
-                          src={service.service_image}
-                          alt={service.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src =
-                              'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=100';
-                          }}
-                        />
-                        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                          <ZoomIn className="w-3.5 h-3.5" />
-                        </div>
+          <>
+            {/* Mobile Card View (md:hidden) */}
+            <div className="md:hidden divide-y divide-slate-800/80">
+              {filteredServices.map((service) => (
+                <div key={service.id} className="p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div
+                      onClick={() => setLightboxImage({ src: service.service_image, alt: service.name })}
+                      className="w-16 h-16 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 shrink-0 cursor-zoom-in"
+                    >
+                      <img
+                        src={service.service_image}
+                        alt={service.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=100';
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-950/70 text-sky-300 border border-sky-800/50">
+                          {service.cg_name || 'หมวดหมู่'}
+                        </span>
+                        <span className="font-mono font-black text-emerald-400 text-sm">
+                          ฿{service.price.toLocaleString()}
+                        </span>
                       </div>
-                    </td>
+                      <p className="font-bold text-slate-100 text-sm leading-snug">{service.name}</p>
+                      <p className="text-[11px] text-slate-400 line-clamp-2">{service.detail}</p>
+                    </div>
+                  </div>
 
-                    {/* Name & Details */}
-                    <td className="py-3 px-4 max-w-xs sm:max-w-md">
-                      <p className="font-bold text-slate-100 text-sm">{service.name}</p>
-                      <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5 font-normal">
-                        {service.detail}
-                      </p>
-                    </td>
-
-                    {/* Category */}
-                    <td className="py-3 px-4">
-                      <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-sky-950/70 text-sky-300 border border-sky-800/50">
-                        {service.cg_name || 'หมวดหมู่'}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
+                    {service.status ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/70 text-emerald-400 border border-emerald-800/60">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        <span>เปิดรับซ่อม</span>
                       </span>
-                    </td>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                        <XCircle className="w-3 h-3 text-slate-500" />
+                        <span>ปิดบริการ</span>
+                      </span>
+                    )}
 
-                    {/* Price */}
-                    <td className="py-3 px-4 font-bold text-rose-400 text-sm font-mono">
-                      ฿{service.price.toLocaleString()}
-                    </td>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openEditModal(service)}
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>แก้ไข</span>
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(service)}
+                        className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
 
-                    {/* Status */}
-                    <td className="py-3 px-4">
-                      {service.status ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/70 text-emerald-400 border border-emerald-800/60">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                          <span>เปิดรับซ่อม</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                          <XCircle className="w-3 h-3 text-slate-500" />
-                          <span>ปิดบริการ</span>
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => openEditModal(service)}
-                          title="แก้ไขบริการ"
-                          className="p-2 rounded-xl text-slate-400 hover:text-sky-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteTarget(service)}
-                          title="ลบบริการ"
-                          className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-
+            {/* Desktop Table View (hidden md:block) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-950/80 border-b border-slate-800 text-slate-400">
+                  <tr>
+                    <th className="py-3 px-4 font-semibold">รูปภาพ</th>
+                    <th className="py-3 px-4 font-semibold">ชื่อบริการ & รายละเอียด</th>
+                    <th className="py-3 px-4 font-semibold">หมวดหมู่</th>
+                    <th className="py-3 px-4 font-semibold">ราคา (Price)</th>
+                    <th className="py-3 px-4 font-semibold">สถานะบริการ</th>
+                    <th className="py-3 px-4 font-semibold text-right">จัดการ</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {filteredServices.map((service) => (
+                    <tr key={service.id} className="hover:bg-slate-800/40 transition-colors">
+                      
+                      {/* Thumbnail with Lightbox */}
+                      <td className="py-3 px-4 w-20">
+                        <div
+                          onClick={() => setLightboxImage({ src: service.service_image, alt: service.name })}
+                          className="relative group cursor-zoom-in w-14 h-14 rounded-xl overflow-hidden border border-slate-800 bg-slate-950"
+                        >
+                          <img
+                            src={service.service_image}
+                            alt={service.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src =
+                                'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=100';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                            <ZoomIn className="w-3.5 h-3.5" />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Name & Details */}
+                      <td className="py-3 px-4 max-w-xs lg:max-w-md">
+                        <p className="font-bold text-slate-100 text-sm">{service.name}</p>
+                        <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5 font-normal">
+                          {service.detail}
+                        </p>
+                      </td>
+
+                      {/* Category */}
+                      <td className="py-3 px-4">
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-sky-950/70 text-sky-300 border border-sky-800/50 whitespace-nowrap">
+                          {service.cg_name || 'หมวดหมู่'}
+                        </span>
+                      </td>
+
+                      {/* Price (Positive Emerald Color) */}
+                      <td className="py-3 px-4 font-bold text-emerald-400 text-sm font-mono whitespace-nowrap">
+                        ฿{service.price.toLocaleString()}
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {service.status ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/70 text-emerald-400 border border-emerald-800/60">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>เปิดรับซ่อม</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                            <XCircle className="w-3 h-3 text-slate-500" />
+                            <span>ปิดบริการ</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => openEditModal(service)}
+                            title="แก้ไขบริการ"
+                            className="p-2 rounded-xl text-slate-400 hover:text-sky-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(service)}
+                            title="ลบบริการ"
+                            className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
       {/* ======================================================== */}
-      {/* MODAL: ADD / EDIT SERVICE (Dark Mode) */}
+      {/* MODAL: ADD / EDIT SERVICE */}
       {/* ======================================================== */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-lg p-6 sm:p-7 space-y-5 shadow-2xl animate-modal relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl sm:rounded-3xl w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl animate-modal relative max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-base font-bold text-white">
+              <h3 className="text-sm sm:text-base font-bold text-white">
                 {editingService ? 'แก้ไขรายการบริการ' : 'เพิ่มรายการบริการใหม่'}
               </h3>
               <button
@@ -426,7 +493,7 @@ export const AdminServices: React.FC = () => {
               </div>
 
               {/* Category & Price */}
-              <div className="grid grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-300">หมวดหมู่ (เชื่อม Categories) *</label>
                   <select
@@ -500,14 +567,14 @@ export const AdminServices: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
                   disabled={formSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                 >
                   {formSubmitting ? 'กำลังบันทึก...' : editingService ? 'บันทึกการแก้ไข' : 'เพิ่มบริการ'}
                 </button>
@@ -520,11 +587,11 @@ export const AdminServices: React.FC = () => {
       )}
 
       {/* ======================================================== */}
-      {/* DELETE CONFIRMATION MODAL (Dark Mode) */}
+      {/* DELETE CONFIRMATION MODAL */}
       {/* ======================================================== */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm p-6 text-center space-y-4 shadow-2xl animate-modal">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-6 text-center space-y-4 shadow-2xl animate-modal">
             <div className="w-12 h-12 rounded-2xl bg-rose-950/60 border border-rose-800/60 text-rose-400 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>

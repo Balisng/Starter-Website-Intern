@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Wrench,
   Inbox,
+  FileCheck2,
   Users,
   LogOut,
   ChevronRight,
@@ -22,17 +23,19 @@ export const AdminLayout: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
 
-  // Check auth and redirect if not logged in (ตาม Requirement)
+  // Check auth and redirect if not logged in
   useEffect(() => {
     if (!loading && !user) {
       navigate('/login', { replace: true });
     }
   }, [user, loading, navigate]);
 
-  // Fetch unread inbox messages count
+  // Fetch unread active inbox messages count
   useEffect(() => {
     if (user) {
-      apiRequest('/inbox', { params: { read_status: 'unread' } })
+      apiRequest<any[]>('/inbox', {
+        params: { read_status: 'unread', repair_status: 'pending' },
+      })
         .then((res) => {
           if (res.success && res.data) {
             setUnreadCount(res.data.length);
@@ -43,10 +46,10 @@ export const AdminLayout: React.FC = () => {
   }, [user, location.pathname]);
 
   // Check technician role restriction:
-  // "ส่วนช่างจะไม่มีสิทธิในการจัดการผู้ใช้งาน และเข้าถึงได้แค่หน้าInbox เท่านั้น"
+  // ช่างเข้าถึงได้เฉพาะหน้าคิวงานแจ้งซ่อม (/admin/inbox) และหน้าประวัติการซ่อม (/admin/history)
   useEffect(() => {
     if (user && user.role === 'technician') {
-      const allowedPaths = ['/admin/inbox'];
+      const allowedPaths = ['/admin/inbox', '/admin/history'];
       const isAllowed = allowedPaths.some((p) => location.pathname.startsWith(p));
       if (!isAllowed) {
         navigate('/admin/inbox', { replace: true });
@@ -81,7 +84,7 @@ export const AdminLayout: React.FC = () => {
     ...(isAdmin
       ? [
           {
-            name: 'Dashboard (แดชบอร์ด)',
+            name: 'แดชบอร์ด (Dashboard)',
             path: '/admin/dashboard',
             icon: LayoutDashboard,
           },
@@ -93,10 +96,15 @@ export const AdminLayout: React.FC = () => {
         ]
       : []),
     {
-      name: 'กล่องข้อความแจ้งซ่อม (Inbox)',
+      name: 'คิวงานรอซ่อม (Inbox)',
       path: '/admin/inbox',
       icon: Inbox,
       badge: unreadCount > 0 ? unreadCount : undefined,
+    },
+    {
+      name: 'ประวัติการซ่อม & ผลงานช่าง',
+      path: '/admin/history',
+      icon: FileCheck2,
     },
     ...(isAdmin
       ? [
@@ -115,11 +123,9 @@ export const AdminLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row antialiased">
-      
-      {/* Mobile Top Header */}
-      {/* [จุดเปลี่ยนรูปภาพ LOGO บนมือถือ]: แทนที่ <div className="w-8 h-8..."> ด้วย <img src="/logo.png" className="w-8 h-8 object-contain" /> */}
-      <div className="md:hidden bg-slate-900 border-b border-slate-800 text-white px-4 py-3.5 flex items-center justify-between sticky top-0 z-40">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col lg:flex-row antialiased overflow-x-hidden">
+      {/* Mobile & Tablet Top Header (< lg) */}
+      <div className="lg:hidden bg-slate-900 border-b border-slate-800 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-sky-600 flex items-center justify-center shadow-xs">
             <Cpu className="w-4 h-4 text-white" />
@@ -130,36 +136,32 @@ export const AdminLayout: React.FC = () => {
         </div>
         <button
           onClick={() => setSidebarOpen(true)}
-          className="p-2 text-slate-300 hover:text-white rounded-xl hover:bg-slate-800"
+          className="p-2 text-slate-300 hover:text-white rounded-xl hover:bg-slate-800 cursor-pointer"
           aria-label="เปิดเมนูนำทาง"
         >
-          <Menu className="w-6 h-6" />
+          <Menu className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Mobile Backdrop Overlay */}
+      {/* Mobile & Tablet Backdrop Overlay */}
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden animate-backdrop"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden animate-backdrop"
         />
       )}
 
-      {/* Admin Sidebar (Modern Dark Mode) */}
+      {/* Admin Sidebar */}
       <aside
-        className={`fixed md:sticky top-0 left-0 h-screen w-72 bg-slate-900/95 backdrop-blur-md border-r border-slate-800 flex flex-col justify-between z-50 transition-transform duration-300 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        className={`fixed lg:sticky top-0 left-0 h-screen w-64 shrink-0 bg-slate-900/95 backdrop-blur-md border-r border-slate-800 flex flex-col justify-between z-50 transition-transform duration-300 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        <div className="p-5 space-y-6">
-          
+        <div className="p-4 space-y-5 overflow-y-auto">
           {/* Brand & Portal Title */}
-          {/* [จุดเปลี่ยนรูปภาพ LOGO ใน Admin Sidebar]: หากต้องการใช้รูปภาพแทนไอคอน CPU ด้านล่าง 
-              สามารถแทนที่แท็ก <div className="w-9 h-9..."> ด้วย:
-              <img src="/logo.png" alt="Fix Please Logo" className="w-9 h-9 object-contain" /> */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-sky-600 flex items-center justify-center shadow-md shadow-sky-900/40">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-sky-600 flex items-center justify-center shadow-md shadow-sky-900/40 shrink-0">
                 <Cpu className="w-5 h-5 text-white" />
               </div>
               <div>
@@ -172,32 +174,34 @@ export const AdminLayout: React.FC = () => {
               </div>
             </div>
 
-            {/* Close button for mobile */}
+            {/* Close button for mobile/tablet */}
             <button
               onClick={() => setSidebarOpen(false)}
-              className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white"
+              className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* User Profile Card */}
-          <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-1.5">
-            <div className="flex items-center justify-between">
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-bold text-slate-100 truncate">
                 {user.u_name} {user.u_surname}
               </span>
               <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
                   isAdmin
-                    ? 'bg-rose-950/70 text-rose-300 border border-rose-800/60'
-                    : 'bg-sky-950/70 text-sky-300 border border-sky-800/60'
+                    ? 'bg-indigo-950/80 text-indigo-300 border border-indigo-800/60'
+                    : 'bg-sky-950/80 text-sky-300 border border-sky-800/60'
                 }`}
               >
                 {isAdmin ? 'Admin' : 'ช่าง'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 truncate font-mono">@{user.username} • {user.email}</p>
+            <p className="text-[11px] text-slate-400 truncate font-mono">
+              @{user.username} • {user.email}
+            </p>
           </div>
 
           {/* Navigation Links */}
@@ -212,18 +216,18 @@ export const AdminLayout: React.FC = () => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${
                     active
                       ? 'bg-sky-600 text-white shadow-xs font-bold'
                       : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <Icon className="w-4 h-4 shrink-0" />
-                    <span>{item.name}</span>
+                    <span className="truncate">{item.name}</span>
                   </div>
                   {item.badge !== undefined && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500 text-white animate-pulse">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-500 text-white shrink-0">
                       {item.badge}
                     </span>
                   )}
@@ -231,40 +235,37 @@ export const AdminLayout: React.FC = () => {
               );
             })}
           </nav>
-
         </div>
 
         {/* Bottom Actions */}
-        <div className="p-5 border-t border-slate-800/80 space-y-2">
+        <div className="p-4 border-t border-slate-800/80 space-y-1.5">
           <Link
             to="/"
             className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors"
           >
-            <Home className="w-4 h-4 text-sky-400" />
+            <Home className="w-4 h-4 text-sky-400 shrink-0" />
             <span>กลับหน้าแรกเว็บไซต์</span>
           </Link>
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition-all cursor-pointer"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 transition-all cursor-pointer"
           >
             <div className="flex items-center gap-2.5">
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-4 h-4 shrink-0" />
               <span>ออกจากระบบ (Logout)</span>
             </div>
-            <ChevronRight className="w-3.5 h-3.5" />
+            <ChevronRight className="w-3.5 h-3.5 shrink-0" />
           </button>
         </div>
-
       </aside>
 
-      {/* Main Dark Mode Content Area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+      {/* Main Dark Mode Content Area — min-w-0 prevents flex children from breaking responsive widths */}
+      <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-7 overflow-x-hidden">
         <div className="max-w-7xl mx-auto">
           <Outlet />
         </div>
       </main>
-
     </div>
   );
 };

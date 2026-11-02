@@ -12,6 +12,7 @@ import { AdminLayout } from './pages/Admin/AdminLayout';
 import { AdminDashboard } from './pages/Admin/AdminDashboard';
 import { AdminServices } from './pages/Admin/AdminServices';
 import { AdminInbox } from './pages/Admin/AdminInbox';
+import { AdminHistory } from './pages/Admin/AdminHistory';
 import { AdminUsers } from './pages/Admin/AdminUsers';
 
 // Dynamic Page Title Updater based on current active route
@@ -34,6 +35,8 @@ const TitleManager = () => {
       document.title = 'Fix Please | Admin - Services';
     } else if (pathname === '/admin/inbox') {
       document.title = 'Fix Please | Admin - Inbox';
+    } else if (pathname === '/admin/history') {
+      document.title = 'Fix Please | Admin - Repair History';
     } else if (pathname === '/admin/users') {
       document.title = 'Fix Please | Admin - Users';
     } else if (pathname.startsWith('/admin')) {
@@ -49,9 +52,9 @@ const TitleManager = () => {
 // Public Layout Wrapper (with public Navbar and Footer)
 const PublicLayout = () => {
   return (
-    <div className="flex flex-col min-h-screen bg-[#fafbfc] text-slate-800 antialiased selection:bg-pink-500 selection:text-white">
+    <div className="flex flex-col min-h-screen bg-[#f8fafc] text-slate-800 antialiased selection:bg-sky-600 selection:text-white overflow-x-hidden">
       <Navbar />
-      <main className="flex-grow">
+      <main className="flex-grow min-w-0">
         <Outlet />
       </main>
       <Footer />
@@ -80,6 +83,7 @@ export function App() {
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="services" element={<AdminServices />} />
               <Route path="inbox" element={<AdminInbox />} />
+              <Route path="history" element={<AdminHistory />} />
               <Route path="users" element={<AdminUsers />} />
             </Route>
 
