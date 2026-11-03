@@ -12,13 +12,25 @@
   },
   "rewrites": [
     {
-      "source": "/api(.*)",
+      "source": "/api/(.*)",
       "destination": {
         "service": "backend"
       }
     },
     {
-      "source": "/((?!assets/|favicon\\.ico|.*\\.[\\w]+$).*)",
+      "source": "/assets/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
+      "source": "/favicon.svg",
+      "destination": {
+        "service": "frontend"
+      }
+    },
+    {
+      "source": "/((?!api/|assets/|favicon\\.ico|favicon\\.svg).*)",
       "destination": {
         "service": "frontend",
         "path": "/index.html"
@@ -27,7 +39,8 @@
     {
       "source": "/(.*)",
       "destination": {
-        "service": "frontend"
+        "service": "frontend",
+        "path": "/index.html"
       }
     }
   ]

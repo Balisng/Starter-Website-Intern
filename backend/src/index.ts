@@ -46,9 +46,11 @@ const healthCheck = async (_req: Request, res: Response) => {
   });
 };
 app.get('/api/health', healthCheck);
+app.get('/health', healthCheck);
 
-// Main API Routes
+// Main API Routes (รองรับทั้งผ่าน /api และกรณี Serverless rewrite ตัด prefix)
 app.use('/api', apiRoutes);
+app.use('/', apiRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
