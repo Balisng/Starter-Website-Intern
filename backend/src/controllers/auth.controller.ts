@@ -56,10 +56,12 @@ export async function login(req: Request, res: Response): Promise<void> {
       expiresIn: '7d',
     });
 
+    const isSecure = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+
     // เซ็ต Cookie แบบ HttpOnly (ปลอดภัยจากการถูกดึงผ่าน XSS / Local Storage)
     res.cookie(COOKIE_NAME, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isSecure,
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 วัน
       path: '/',
@@ -84,9 +86,11 @@ export async function login(req: Request, res: Response): Promise<void> {
  * ออกจากระบบ และเคลียร์ Cookie
  */
 export async function logout(_req: Request, res: Response): Promise<void> {
+  const isSecure = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecure,
     sameSite: 'lax',
     path: '/',
   });

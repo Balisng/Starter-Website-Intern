@@ -43,9 +43,10 @@ export async function authenticate(
       .limit(1);
 
     if (!currentUser) {
+      const isSecure = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
       res.clearCookie('auth_token', {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: isSecure,
         sameSite: 'lax',
         path: '/',
       });

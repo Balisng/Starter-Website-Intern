@@ -9,7 +9,7 @@ import apiRoutes from './routes';
 
 const app = express();
 
-// Middlewares: CORS with explicit origin whitelist from CLIENT_URL
+// Middlewares: CORS with explicit origin whitelist from CLIENT_URL and Vercel domains
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -20,7 +20,10 @@ app.use(
       }
 
       const normalizedOrigin = origin.replace(/\/$/, '');
-      if (ALLOWED_ORIGINS.includes(normalizedOrigin)) {
+      if (
+        ALLOWED_ORIGINS.includes(normalizedOrigin) ||
+        normalizedOrigin.endsWith('.vercel.app')
+      ) {
         callback(null, true);
       } else {
         callback(new Error(`Origin ${origin} is not allowed by CORS policy`));

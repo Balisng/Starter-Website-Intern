@@ -5,6 +5,7 @@ import * as schema from '../db/schema';
 
 const connectionString =
   process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
   'postgresql://postgres:postgres@localhost:5432/repair_service_db';
 
 // Create Postgres.js client with serverless pooling & SSL support
