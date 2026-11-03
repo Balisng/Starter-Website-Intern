@@ -1,16 +1,27 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "bun install",
-  "buildCommand": "bun run build",
-  "outputDirectory": "frontend/dist",
+  "services": {
+    "backend": {
+      "root": "backend",
+      "framework": "express"
+    },
+    "frontend": {
+      "root": "frontend",
+      "framework": "vite"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": {
+        "service": "backend"
+      }
     },
     {
-      "source": "/((?!api/|assets/|favicon\\.ico|favicon\\.svg).*)",
-      "destination": "/index.html"
+      "source": "/(.*)",
+      "destination": {
+        "service": "frontend"
+      }
     }
   ]
 }
