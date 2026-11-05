@@ -5,6 +5,7 @@
 ---
 
 ## 📋 สารบัญ (Table of Contents)
+
 1. [ภาพรวมของระบบและบทบาทผู้ใช้งาน (System Overview & Roles)](#-ภาพรวมของระบบและบทบาทผู้ใช้งาน)
 2. [โครงสร้างโปรเจกต์ (Project Structure)](#-โครงสร้างโปรเจกต์)
 3. [ความต้องการของระบบ (System Requirements)](#-ความต้องการของระบบ)
@@ -18,29 +19,32 @@
 ## 🌟 ภาพรวมของระบบและบทบาทผู้ใช้งาน
 
 ### 1. ลูกค้าทั่วไป (Public Customers)
+
 - **หน้าหลัก (Home):** ค้นหาบริการเด่น ดูหมวดหมู่การซ่อม ข้อดีของศูนย์บริการ และคลิกเพื่อแจ้งซ่อมได้ทันที
-- **หน้ารวมบริการ (Services):** เลือกดูบริการซ่อมทั้งหมด ค้นหาตามชื่อ กรองตามหมวดหมู่ (Computer, Laptop, Phone) และกดปุ่ม *"ส่งซ่อมบริการนี้"* เพื่อส่งต่อไปยังฟอร์มแจ้งซ่อม
+- **หน้ารวมบริการ (Services):** เลือกดูบริการซ่อมทั้งหมด ค้นหาตามชื่อ กรองตามหมวดหมู่ (Computer, Laptop, Phone) และกดปุ่ม _"ส่งซ่อมบริการนี้"_ เพื่อส่งต่อไปยังฟอร์มแจ้งซ่อม
 - **หน้าติดต่อเรา / แบบฟอร์มแจ้งซ่อม (About Me & Contact Us):**
-  - **กรณีเข้าโดยตรง:** กรอกแบบฟอร์มได้ทันที และเลือกบริการที่ต้องการซ่อมจาก Dropdown โดยมีตัวเลือก *"ไม่แน่ใจอาการ / ปรึกษาช่างก่อน (ประเมินภายหลัง)"* ซึ่งจะส่งค่า `service_id` เป็น `null`
+  - **กรณีเข้าโดยตรง:** กรอกแบบฟอร์มได้ทันที และเลือกบริการที่ต้องการซ่อมจาก Dropdown โดยมีตัวเลือก _"ไม่แน่ใจอาการ / ปรึกษาช่างก่อน (ประเมินภายหลัง)"_ ซึ่งจะส่งค่า `service_id` เป็น `null`
   - **กรณีกดมาจากหน้า Services/Home:** ระบบจะเลือก (Pre-selected) บริการนั้นๆ ใน Dropdown ให้อัตโนมัติ
   - รองรับการกรอกข้อมูลลูกค้า (ชื่อ, เบอร์โทร, อีเมล, อาการเสีย) และแนบ URL รูปถ่ายความเสียหาย (สำหรับระดับ Starter Project)
 - **ดูรูปภาพขยาย (Image Lightbox):** สามารถคลิกดูรูปภาพประกอบการซ่อมหรือรูปที่แนบมาแบบเต็มจอได้
 
 ### 2. ช่างซ่อม (Technician)
+
 - เข้าสู่ระบบผ่านหน้า `/login`
 - **สิทธิ์การเข้าถึง:** เข้าถึงได้เฉพาะ **"กล่องข้อความแจ้งซ่อม (Admin Inbox)"** (`/admin/inbox`) เท่านั้น (ระบบจะทำการ Redirect ป้องกันการเข้าหน้าอื่นอัตโนมัติ)
 - **ระบบกรองงานสำหรับช่าง:**
   - กรองงานตามหมวดหมู่ที่ตนเองรับผิดชอบ (Computer, Laptop, Phone)
-  - กรองเฉพาะงานที่ *"ยังไม่ระบุบริการ (ลูกค้าไม่แน่ใจอาการ / null)"* หรือกรองตามช่างผู้รับผิดชอบ
+  - กรองเฉพาะงานที่ _"ยังไม่ระบุบริการ (ลูกค้าไม่แน่ใจอาการ / null)"_ หรือกรองตามช่างผู้รับผิดชอบ
 - **การจัดการงานซ่อม:**
   - เปิดอ่านรายละเอียดของ Ticket (เรียก `PATCH /api/inbox/:id/read` เพื่อเปลี่ยนเป็นสถานะ "อ่านแล้ว")
   - ดูรูปภาพสินค้าที่ลูกค้าแนบมาผ่าน Lightbox
   - **แก้ไขได้เฉพาะงานของตนเองหรืองานที่ยังไม่มีผู้รับผิดชอบ:** ช่างไม่สามารถแก้ไขงานที่มอบหมายให้ช่างคนอื่นแล้ว และไม่สามารถลบใบแจ้งซ่อมได้
   - **เลือก/ผูกบริการที่ซ่อมจริง (Service Assignment):** ช่างสามารถเลือกบริการจริงที่ดำเนินการซ่อม เพื่อผูกราคากับระบบ
-  - **บันทึกสถานะงานซ่อม:** เปลี่ยนสถานะเป็น *รอซ่อม (Pending)* หรือ *ซ่อมเสร็จแล้ว (Completed)* พร้อมใส่บันทึกความคิดเห็นของช่าง
+  - **บันทึกสถานะงานซ่อม:** เปลี่ยนสถานะเป็น _รอซ่อม (Pending)_ หรือ _ซ่อมเสร็จแล้ว (Completed)_ พร้อมใส่บันทึกความคิดเห็นของช่าง
   - **Validation Guard & Price Snapshot:** ป้องกันไม่ให้เปลี่ยนสถานะเป็น "ซ่อมเสร็จแล้ว" หากยังไม่ได้เลือกผูกบริการจริง และเมื่อปิดงานจะบันทึก `final_price` และ `completed_at` ทันที
 
 ### 3. ผู้ดูแลระบบ (Admin)
+
 - มีสิทธิ์เข้าถึงระบบหลังบ้านครบทุกฟังก์ชัน (Full Access):
   1. **Dashboard (แดชบอร์ด):** สรุปยอดรายรับทั้งหมด, รายสัปดาห์ (7 วัน), รายเดือน (30 วัน) จาก `final_price` และ `completed_at`, จำนวนงานที่ซ่อมเสร็จ, จำนวนงานรอซ่อม, จำนวนช่างในระบบ, กราฟสัดส่วนรายรับตามหมวดหมู่, รายการกิจกรรมงานซ่อมล่าสุด และสถิติผลงานช่างแต่ละคน
   2. **จัดการบริการ (Services Management):** เพิ่ม, แก้ไข, ลบ, ค้นหา, กรอง และสลับสถานะเปิด/ปิดบริการซ่อม
@@ -60,7 +64,7 @@ Starter-Website-Intern/
 │   │   │   └── env.ts              # ตรวจสอบ JWT_SECRET และตั้งค่า CORS Whitelist (CLIENT_URL)
 │   │   ├── controllers/            # Controller จัดการ Logic แต่ละ Entity
 │   │   │   ├── auth.controller.ts        # ล็อกอิน, ล็อกเอาต์, ตรวจสอบ session (/api/auth)
-│   │   │   ├── categories.controller.ts  # จัดการหมวดหมู่สินค้า (/api/categories)
+│   │   │   ├── categories.controller.ts  # จัดการหมวดหมู่บริการ (/api/categories)
 │   │   │   ├── dashboard.controller.ts   # คำนวณรายได้และสถิติภาพรวม (/api/dashboard)
 │   │   │   ├── inbox.controller.ts       # จัดการกล่องข้อความแจ้งซ่อม (/api/inbox)
 │   │   │   ├── services.controller.ts    # จัดการรายการบริการซ่อม (/api/services)
@@ -124,6 +128,7 @@ Starter-Website-Intern/
 ## 🚀 ขั้นตอนการติดตั้งและเริ่มใช้งาน (Getting Started)
 
 ### 1. ติดตั้ง Dependencies
+
 เปิด Terminal ในโฟลเดอร์หลักของโปรเจกต์:
 
 ```bash
@@ -137,6 +142,7 @@ bun install
 ```
 
 ### 2. ตั้งค่าไฟล์ Environment Variables (`.env`)
+
 ในโฟลเดอร์ `backend/` ให้สร้างไฟล์ `.env` โดยคัดลอกโครงสร้างมาจาก `.env.example`:
 
 ```env
@@ -160,6 +166,7 @@ SEED_TECH_PASSWORD=<your-technician-password>
 ```
 
 ### 3. เตรียมฐานข้อมูลและสร้างข้อมูลเริ่มต้น (Database Migration & Seed)
+
 ซิงค์โครงสร้างตารางและรันคำสั่ง Seed ข้อมูลเริ่มต้น:
 
 ```bash
@@ -168,24 +175,29 @@ bun run db:push
 bun run db:seed
 ```
 
-*(ระบบจะสร้างหมวดหมู่เริ่มต้น, รายการบริการตัวอย่าง และบัญชีผู้ใช้งานตามที่ตั้งค่าไว้ใน `SEED_ADMIN_*` และ `SEED_TECH_*` ของไฟล์ `.env`)*
+_(ระบบจะสร้างหมวดหมู่เริ่มต้น, รายการบริการตัวอย่าง และบัญชีผู้ใช้งานตามที่ตั้งค่าไว้ใน `SEED*ADMIN*_`และ`SEED*TECH*_`ของไฟล์`.env`)_
 
 ### 4. รันระบบสำหรับการพัฒนา (Development Mode)
 
 #### ⚡ วิธีที่ 1: รันคำสั่งเดียวพร้อมกันทั้งระบบ (One-liner Quick Start - แนะนำ)
+
 เปิด Terminal ที่โฟลเดอร์หลัก (Root) แล้วพิมพ์:
+
 ```bash
 bun run start:all
 ```
 
 #### 🛠️ วิธีที่ 2: รันแยกทีละหน้าต่าง Terminal
+
 **Terminal 1 (Backend - พอร์ต 5000):**
+
 ```bash
 cd backend
 bun run dev
 ```
 
 **Terminal 2 (Frontend - พอร์ต 3000):**
+
 ```bash
 cd frontend
 bun run dev
@@ -199,18 +211,20 @@ bun run dev
 
 ระบบใช้ **Drizzle ORM** ร่วมกับไดรเวอร์ `postgres.js` โดยมีคำสั่งจัดการฐานข้อมูลใน `backend/package.json` ดังนี้:
 
-| คำสั่ง | คำอธิบาย |
-| :--- | :--- |
-| `bun run db:push` | ซิงค์ Drizzle Schema ไปยัง PostgreSQL ทันที |
-| `bun run db:generate` | สร้างไฟล์ SQL Migration ในโฟลเดอร์ `drizzle/` |
-| `bun run db:migrate` | ดำเนินการรัน Migration ไปยังฐานข้อมูล |
-| `bun run db:seed` | รันสคริปต์เพิ่มหมวดหมู่, บริการ และผู้ใช้เริ่มต้นจาก `.env` |
-| `bun run db:studio` | เปิด Drizzle Studio (GUI ตรวจสอบข้อมูลในเบราว์เซอร์) |
+| คำสั่ง                | คำอธิบาย                                                    |
+| :-------------------- | :---------------------------------------------------------- |
+| `bun run db:push`     | ซิงค์ Drizzle Schema ไปยัง PostgreSQL ทันที                 |
+| `bun run db:generate` | สร้างไฟล์ SQL Migration ในโฟลเดอร์ `drizzle/`               |
+| `bun run db:migrate`  | ดำเนินการรัน Migration ไปยังฐานข้อมูล                       |
+| `bun run db:seed`     | รันสคริปต์เพิ่มหมวดหมู่, บริการ และผู้ใช้เริ่มต้นจาก `.env` |
+| `bun run db:studio`   | เปิด Drizzle Studio (GUI ตรวจสอบข้อมูลในเบราว์เซอร์)        |
 
 ### โครงสร้างตาราง (Database Schema Summary — ตรงตาม `backend/src/db/schema.ts`):
+
 - **PostgreSQL Enums:**
   - `user_role`: `'admin'` | `'technician'`
   - `repair_status`: `'pending'` | `'completed'`
+
 1. **`categories` (หมวดหมู่บริการ):**
    - `cg_id` (PK, Serial)
    - `cg_name` (Varchar 50, Not Null)
@@ -252,51 +266,57 @@ bun run dev
 Base URL: `http://localhost:5000/api` (Frontend เรียกผ่าน `/api`)
 
 ### 1. Authentication (`/api/auth`)
-| Method | Endpoint | สิทธิ์เข้าถึง | คำอธิบาย | Request Body |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | Public (Rate Limited) | เข้าสู่ระบบ และเซ็ต HttpOnly Cookie (`auth_token`) | `{ "username": "...", "pwd": "..." }` |
-| `POST` | `/api/auth/logout` | Public | เคลียร์ HttpOnly Cookie ออกจากเบราว์เซอร์ | - |
-| `GET` | `/api/auth/me` | Authenticated | ดึงข้อมูลผู้ใช้งานปัจจุบัน (ตรวจสอบกับฐานข้อมูลจริงทุกครั้ง) | - |
 
-### 2. หมวดหมู่สินค้า (`/api/categories`)
-| Method | Endpoint | สิทธิ์เข้าถึง | คำอธิบาย | Request Body |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/categories` | Public | ดึงรายการหมวดหมู่ทั้งหมด | - |
-| `GET` | `/api/categories/:id` | Public | ดึงรายละเอียดหมวดหมู่ตาม ID | - |
-| `POST` | `/api/categories` | Admin Only | เพิ่มหมวดหมู่ใหม่ | `{ "cg_name": "Tablet" }` |
+| Method | Endpoint           | สิทธิ์เข้าถึง         | คำอธิบาย                                                     | Request Body                          |
+| :----- | :----------------- | :-------------------- | :----------------------------------------------------------- | :------------------------------------ |
+| `POST` | `/api/auth/login`  | Public (Rate Limited) | เข้าสู่ระบบ และเซ็ต HttpOnly Cookie (`auth_token`)           | `{ "username": "...", "pwd": "..." }` |
+| `POST` | `/api/auth/logout` | Public                | เคลียร์ HttpOnly Cookie ออกจากเบราว์เซอร์                    | -                                     |
+| `GET`  | `/api/auth/me`     | Authenticated         | ดึงข้อมูลผู้ใช้งานปัจจุบัน (ตรวจสอบกับฐานข้อมูลจริงทุกครั้ง) | -                                     |
+
+### 2. หมวดหมู่บริการ (`/api/categories`)
+
+| Method | Endpoint              | สิทธิ์เข้าถึง | คำอธิบาย                    | Request Body              |
+| :----- | :-------------------- | :------------ | :-------------------------- | :------------------------ |
+| `GET`  | `/api/categories`     | Public        | ดึงรายการหมวดหมู่ทั้งหมด    | -                         |
+| `GET`  | `/api/categories/:id` | Public        | ดึงรายละเอียดหมวดหมู่ตาม ID | -                         |
+| `POST` | `/api/categories`     | Admin Only    | เพิ่มหมวดหมู่ใหม่           | `{ "cg_name": "Tablet" }` |
 
 ### 3. บริการซ่อม (`/api/services`)
-| Method | Endpoint | สิทธิ์เข้าถึง | คำอธิบาย | Query / Request Body |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/services` | Public | ดึงรายการบริการทั้งหมด | Query: `?cg_id=1&status=true` |
-| `GET` | `/api/services/:id` | Public | ดึงรายละเอียดบริการตาม ID | - |
-| `POST` | `/api/services` | Admin Only | เพิ่มบริการซ่อมใหม่ | `{ "name": "...", "cg_id": 1, "price": 1500, "status": true, ... }` |
-| `PUT` | `/api/services/:id` | Admin Only | แก้ไขข้อมูลบริการซ่อม | `{ "name": "...", "price": 1800, ... }` |
-| `DELETE` | `/api/services/:id` | Admin Only | ลบบริการซ่อม | - |
+
+| Method   | Endpoint            | สิทธิ์เข้าถึง | คำอธิบาย                  | Query / Request Body                                                |
+| :------- | :------------------ | :------------ | :------------------------ | :------------------------------------------------------------------ |
+| `GET`    | `/api/services`     | Public        | ดึงรายการบริการทั้งหมด    | Query: `?cg_id=1&status=true`                                       |
+| `GET`    | `/api/services/:id` | Public        | ดึงรายละเอียดบริการตาม ID | -                                                                   |
+| `POST`   | `/api/services`     | Admin Only    | เพิ่มบริการซ่อมใหม่       | `{ "name": "...", "cg_id": 1, "price": 1500, "status": true, ... }` |
+| `PUT`    | `/api/services/:id` | Admin Only    | แก้ไขข้อมูลบริการซ่อม     | `{ "name": "...", "price": 1800, ... }`                             |
+| `DELETE` | `/api/services/:id` | Admin Only    | ลบบริการซ่อม              | -                                                                   |
 
 ### 4. กล่องข้อความแจ้งซ่อม (`/api/inbox`)
-| Method | Endpoint | สิทธิ์เข้าถึง | คำอธิบาย | Query / Request Body |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/inbox` | Public (Rate Limited) | ลูกค้าส่งแบบฟอร์มแจ้งซ่อม (`service_id` เป็น `null` ได้) | `{ "cm_username": "...", "cm_cel": "...", "cm_symptom": "...", "service_id": null }` |
-| `GET` | `/api/inbox` | Staff (Admin/ช่าง) | ดึงรายการแจ้งซ่อมทั้งหมด พร้อม Left Join ชื่อบริการ, หมวดหมู่ และช่าง | Query: `?read_status=unread&category_id=1&service_id=unassigned&technician_id=...&search=...` |
-| `GET` | `/api/inbox/:id` | Staff (Admin/ช่าง) | ดูรายละเอียด Ticket รายตัว (ไม่มี Side Effect) | - |
-| `PATCH` | `/api/inbox/:id/read` | Staff (Admin/ช่าง) | อัปเดตสถานะข้อความเป็น "อ่านแล้ว (`is_read = true`)" | - |
-| `PATCH` | `/api/inbox/:id/status`| Staff (Admin/ช่าง) | อัปเดตสถานะงาน (`repair_status`), ผูกบริการจริง (`service_id`), บันทึก `final_price` และ `completed_at` *(ช่างแก้ได้เฉพาะงานตัวเองหรืองานที่ยังไม่มีช่างรับ)* | `{ "repair_status": "completed", "service_id": 2, "comment": "..." }` |
-| `DELETE` | `/api/inbox/:id` | Admin Only | ลบข้อความแจ้งซ่อมออกจากระบบ (เฉพาะ Admin) | - |
+
+| Method   | Endpoint                | สิทธิ์เข้าถึง         | คำอธิบาย                                                                                                                                                      | Query / Request Body                                                                          |
+| :------- | :---------------------- | :-------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------- |
+| `POST`   | `/api/inbox`            | Public (Rate Limited) | ลูกค้าส่งแบบฟอร์มแจ้งซ่อม (`service_id` เป็น `null` ได้)                                                                                                      | `{ "cm_username": "...", "cm_cel": "...", "cm_symptom": "...", "service_id": null }`          |
+| `GET`    | `/api/inbox`            | Staff (Admin/ช่าง)    | ดึงรายการแจ้งซ่อมทั้งหมด พร้อม Left Join ชื่อบริการ, หมวดหมู่ และช่าง                                                                                         | Query: `?read_status=unread&category_id=1&service_id=unassigned&technician_id=...&search=...` |
+| `GET`    | `/api/inbox/:id`        | Staff (Admin/ช่าง)    | ดูรายละเอียด Ticket รายตัว (ไม่มี Side Effect)                                                                                                                | -                                                                                             |
+| `PATCH`  | `/api/inbox/:id/read`   | Staff (Admin/ช่าง)    | อัปเดตสถานะข้อความเป็น "อ่านแล้ว (`is_read = true`)"                                                                                                          | -                                                                                             |
+| `PATCH`  | `/api/inbox/:id/status` | Staff (Admin/ช่าง)    | อัปเดตสถานะงาน (`repair_status`), ผูกบริการจริง (`service_id`), บันทึก `final_price` และ `completed_at` _(ช่างแก้ได้เฉพาะงานตัวเองหรืองานที่ยังไม่มีช่างรับ)_ | `{ "repair_status": "completed", "service_id": 2, "comment": "..." }`                         |
+| `DELETE` | `/api/inbox/:id`        | Admin Only            | ลบข้อความแจ้งซ่อมออกจากระบบ (เฉพาะ Admin)                                                                                                                     | -                                                                                             |
 
 ### 5. ผู้ใช้งานระบบ (`/api/users`)
-| Method | Endpoint | สิทธิ์เข้าถึง | คำอธิบาย | Request Body |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/users` | Staff (Admin/ช่าง) | ดึงรายชื่อผู้ใช้ทั้งหมด (ตัดรหัสผ่านออก) เพื่อใช้แสดง/กรองรายชื่อช่าง | - |
-| `GET` | `/api/users/:id` | Admin Only | ดึงข้อมูลผู้ใช้งานตาม ID | - |
-| `POST` | `/api/users` | Admin Only | สร้างบัญชีผู้ใช้ใหม่ (เข้ารหัสผ่านด้วย bcrypt) | `{ "username": "...", "pwd": "...", "role": "technician", ... }` |
-| `PUT` | `/api/users/:id` | Admin Only | แก้ไขข้อมูลผู้ใช้ (เปลี่ยนรหัสผ่านได้เมื่อระบุ) | `{ "u_name": "...", "role": "admin" }` |
-| `DELETE` | `/api/users/:id` | Admin Only | ลบบัญชีผู้ใช้งาน (มีระบบป้องกันการลบบัญชีตัวเอง) | - |
+
+| Method   | Endpoint         | สิทธิ์เข้าถึง      | คำอธิบาย                                                              | Request Body                                                     |
+| :------- | :--------------- | :----------------- | :-------------------------------------------------------------------- | :--------------------------------------------------------------- |
+| `GET`    | `/api/users`     | Staff (Admin/ช่าง) | ดึงรายชื่อผู้ใช้ทั้งหมด (ตัดรหัสผ่านออก) เพื่อใช้แสดง/กรองรายชื่อช่าง | -                                                                |
+| `GET`    | `/api/users/:id` | Admin Only         | ดึงข้อมูลผู้ใช้งานตาม ID                                              | -                                                                |
+| `POST`   | `/api/users`     | Admin Only         | สร้างบัญชีผู้ใช้ใหม่ (เข้ารหัสผ่านด้วย bcrypt)                        | `{ "username": "...", "pwd": "...", "role": "technician", ... }` |
+| `PUT`    | `/api/users/:id` | Admin Only         | แก้ไขข้อมูลผู้ใช้ (เปลี่ยนรหัสผ่านได้เมื่อระบุ)                       | `{ "u_name": "...", "role": "admin" }`                           |
+| `DELETE` | `/api/users/:id` | Admin Only         | ลบบัญชีผู้ใช้งาน (มีระบบป้องกันการลบบัญชีตัวเอง)                      | -                                                                |
 
 ### 6. แดชบอร์ดสรุปผล (`/api/dashboard`)
-| Method | Endpoint | สิทธิ์เข้าถึง | คำอธิบาย |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/dashboard` | Admin Only | คำนวณสรุปยอดรายได้ (รวม/7วัน/30วัน) จาก `final_price` และ `completed_at`, จำนวนงานซ่อมเสร็จ, จำนวนช่าง, จำนวนงานรอซ่อม, สัดส่วนรายได้แยกตามหมวดหมู่, กิจกรรมล่าสุด และสถิติผลงานช่าง |
+
+| Method | Endpoint         | สิทธิ์เข้าถึง | คำอธิบาย                                                                                                                                                                             |
+| :----- | :--------------- | :------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/api/dashboard` | Admin Only    | คำนวณสรุปยอดรายได้ (รวม/7วัน/30วัน) จาก `final_price` และ `completed_at`, จำนวนงานซ่อมเสร็จ, จำนวนช่าง, จำนวนงานรอซ่อม, สัดส่วนรายได้แยกตามหมวดหมู่, กิจกรรมล่าสุด และสถิติผลงานช่าง |
 
 ---
 

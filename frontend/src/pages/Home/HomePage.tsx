@@ -353,7 +353,7 @@ export const HomePage: React.FC = () => {
                     </div>
 
                     <Link
-                      to="/about#contact"
+                      to={`/about?promo=${HOME_PROMOTION_CONFIG.code}#contact`}
                       className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shrink-0"
                     >
                       <span>ใช้สิทธิ์แจ้งซ่อม</span>

@@ -58,6 +58,8 @@ export interface InboxMessage {
   cm_email: string;
   cm_symptom: string;
   cm_image?: string | null;
+  promo_code?: string | null;
+  discount_percent?: number | null;
   is_read: boolean;
   repair_status: RepairStatus;
   comment?: string | null;

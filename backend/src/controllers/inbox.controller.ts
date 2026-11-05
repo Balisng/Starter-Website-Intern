@@ -14,6 +14,16 @@ export async function createInboxMessage(req: Request, res: Response): Promise<v
     const input: CreateInboxMessageInput = req.body;
 
     let validServiceId: number | null = null;
+    let validPromoCode: string | null = null;
+    let discountPercent = 0;
+
+    if (input.promo_code && typeof input.promo_code === 'string') {
+      const rawPromo = input.promo_code.trim().toUpperCase();
+      if (rawPromo === 'HALLOWEEN20' || rawPromo === 'PROMO20' || rawPromo === 'FIX20') {
+        validPromoCode = 'HALLOWEEN20';
+        discountPercent = 20;
+      }
+    }
 
     if (input.service_id) {
       const [service] = await db
@@ -41,6 +51,8 @@ export async function createInboxMessage(req: Request, res: Response): Promise<v
         cm_email: input.cm_email,
         cm_symptom: input.cm_symptom,
         cm_image: input.cm_image || null,
+        promo_code: validPromoCode,
+        discount_percent: discountPercent,
         is_read: false,
         repair_status: 'pending',
         created_at: new Date(),
@@ -144,6 +156,8 @@ export async function getAllInboxMessages(req: Request, res: Response): Promise<
         cm_email: inboxMessages.cm_email,
         cm_symptom: inboxMessages.cm_symptom,
         cm_image: inboxMessages.cm_image,
+        promo_code: inboxMessages.promo_code,
+        discount_percent: inboxMessages.discount_percent,
         is_read: inboxMessages.is_read,
         repair_status: inboxMessages.repair_status,
         comment: inboxMessages.comment,
@@ -204,6 +218,8 @@ export async function getInboxMessageById(req: Request, res: Response): Promise<
         cm_email: inboxMessages.cm_email,
         cm_symptom: inboxMessages.cm_symptom,
         cm_image: inboxMessages.cm_image,
+        promo_code: inboxMessages.promo_code,
+        discount_percent: inboxMessages.discount_percent,
         is_read: inboxMessages.is_read,
         repair_status: inboxMessages.repair_status,
         comment: inboxMessages.comment,
@@ -399,9 +415,27 @@ export async function updateInboxMessageStatus(req: Request, res: Response): Pro
     let finalPrice: number | null = existing.final_price;
     let completedAt: Date | null = existing.completed_at;
 
+    let promoCode = existing.promo_code;
+    let discountPercent = existing.discount_percent || 0;
+
+    if (input.promo_code !== undefined) {
+      const rawPromo = input.promo_code?.trim().toUpperCase();
+      if (rawPromo === 'HALLOWEEN20' || rawPromo === 'PROMO20' || rawPromo === 'FIX20') {
+        promoCode = 'HALLOWEEN20';
+        discountPercent = 20;
+      } else if (!rawPromo) {
+        promoCode = null;
+        discountPercent = 0;
+      }
+    }
+
     if (targetRepairStatus === 'completed') {
       if (existing.repair_status !== 'completed' || finalPrice === null) {
-        finalPrice = selectedServicePrice;
+        if (selectedServicePrice !== null) {
+          finalPrice = Math.round(selectedServicePrice * (1 - discountPercent / 100));
+        } else {
+          finalPrice = null;
+        }
       }
       if (existing.repair_status !== 'completed' || !completedAt) {
         completedAt = new Date();
@@ -415,6 +449,8 @@ export async function updateInboxMessageStatus(req: Request, res: Response): Pro
         service_id: targetServiceId,
         repair_status: targetRepairStatus,
         technician_id: targetTechnicianId,
+        promo_code: promoCode,
+        discount_percent: discountPercent,
         final_price: finalPrice,
         completed_at: completedAt,
         is_read: true,

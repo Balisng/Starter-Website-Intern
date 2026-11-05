@@ -33,11 +33,13 @@ export const createInboxMessageSchema = z.object({
     .min(5, 'อาการเสียต้องระบุอย่างน้อย 5 ตัวอักษร')
     .max(500, 'อาการเสียยาวเกิน 500 ตัวอักษร'),
   cm_image: z.string().max(255, 'รูปภาพยาวเกิน 255 ตัวอักษร').optional().nullable(),
+  promo_code: z.string().max(50, 'โค้ดส่วนลดยาวเกิน 50 ตัวอักษร').optional().nullable(),
 });
 
 export const updateInboxStatusSchema = z.object({
   service_id: z.number().int().optional().nullable(),
   technician_id: z.number().int('รหัสช่างต้องเป็นจำนวนเต็ม').optional().nullable(),
+  promo_code: z.string().max(50).optional().nullable(),
   repair_status: z
     .enum(['pending', 'in_progress', 'completed'], {
       errorMap: () => ({

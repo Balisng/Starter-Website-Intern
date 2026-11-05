@@ -16,6 +16,9 @@ import {
   Award,
   ZoomIn,
   X,
+  Tag,
+  Percent,
+  Check,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
 import { useService } from '../../context/ServiceContext';
@@ -43,6 +46,11 @@ export const AboutPage: React.FC = () => {
   const [cmSymptom, setCmSymptom] = useState('');
   const [cmImage, setCmImage] = useState('');
 
+  // Promotion Code States
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [promoError, setPromoError] = useState('');
+
   // Submission States
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -62,6 +70,44 @@ export const AboutPage: React.FC = () => {
       }
     }
   }, [location]);
+
+  // ตรวจจับโค้ดโปรโมชั่นจาก URL (เช่น มาจากปุ่มในหน้าแรก /about?promo=HALLOWEEN20#contact)
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const promoFromUrl = searchParams.get('promo');
+    if (promoFromUrl) {
+      const clean = promoFromUrl.trim().toUpperCase();
+      if (clean === 'HALLOWEEN20' || clean === 'PROMO20' || clean === 'FIX20') {
+        setPromoCodeInput(clean);
+        setAppliedPromo('HALLOWEEN20');
+        setPromoError('');
+        showToast('🎉 ใช้สิทธิ์โค้ดส่วนลด HALLOWEEN20 ลดค่าบริการ 20% ทุกรายการซ่อมแล้ว!');
+      }
+    }
+  }, [location.search]);
+
+  const handleApplyPromo = (codeToTest?: string) => {
+    const code = (codeToTest || promoCodeInput).trim().toUpperCase();
+    if (!code) {
+      setPromoError('กรุณากรอกโค้ดส่วนลด');
+      return;
+    }
+    if (code === 'HALLOWEEN20' || code === 'PROMO20' || code === 'FIX20') {
+      setAppliedPromo('HALLOWEEN20');
+      setPromoCodeInput('HALLOWEEN20');
+      setPromoError('');
+      showToast('🎉 ใช้โค้ดส่วนลด HALLOWEEN20 สำเร็จ! ได้รับส่วนลด 20% สำหรับงานซ่อมนี้');
+    } else {
+      setPromoError('โค้ดส่วนลดไม่ถูกต้องหรือหมดอายุ (ลองใช้โค้ด HALLOWEEN20)');
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoCodeInput('');
+    setPromoError('');
+    showToast('ยกเลิกการใช้โค้ดส่วนลดแล้ว', 'info');
+  };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 10);
@@ -139,6 +185,7 @@ export const AboutPage: React.FC = () => {
         cm_email: cmEmail.trim(),
         cm_symptom: cmSymptom.trim(),
         cm_image: cmImage.trim() ? cmImage.trim() : null,
+        promo_code: appliedPromo || null,
       };
 
       const res = await apiRequest('/inbox', {
@@ -147,8 +194,9 @@ export const AboutPage: React.FC = () => {
       });
 
       if (res.success) {
-        const msg =
-          res.message || 'ส่งข้อมูลแจ้งซ่อมเรียบร้อยแล้ว ช่างจะติดต่อกลับเพื่อยืนยันรายละเอียดโดยเร็ว';
+        const msg = appliedPromo
+          ? `ส่งข้อมูลแจ้งซ่อมเรียบร้อยแล้ว ได้รับสิทธิ์ส่วนลด 20% (โค้ด: ${appliedPromo}) ช่างจะติดต่อกลับเพื่อยืนยันรายละเอียดโดยเร็ว`
+          : (res.message || 'ส่งข้อมูลแจ้งซ่อมเรียบร้อยแล้ว ช่างจะติดต่อกลับเพื่อยืนยันรายละเอียดโดยเร็ว');
         setSuccessMsg(msg);
         showToast('ส่งเรื่องแจ้งซ่อมเรียบร้อยแล้ว ช่างจะติดต่อกลับโดยเร็ว');
         setCmUsername('');
@@ -157,6 +205,9 @@ export const AboutPage: React.FC = () => {
         setCmSymptom('');
         setCmImage('');
         setServiceId('');
+        setAppliedPromo(null);
+        setPromoCodeInput('');
+        setPromoError('');
         clearSelectedService();
       } else {
         setErrorMsg(res.message || 'ไม่สามารถส่งข้อความได้ กรุณาตรวจสอบข้อมูลอีกครั้ง');
@@ -371,23 +422,56 @@ export const AboutPage: React.FC = () => {
                 </div>
 
                 {currentServiceObj ? (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <p className="text-xs font-bold text-white leading-snug">
                       {currentServiceObj.name}
                     </p>
-                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/80">
-                      <span className="text-[11px] text-sky-400 font-medium">
-                        หมวด: {currentServiceObj.cg_name || 'บริการซ่อม'}
-                      </span>
-                      <span className="font-mono font-bold text-emerald-400">
-                        ฿{currentServiceObj.price.toLocaleString()} บาท
-                      </span>
+                    <div className="space-y-1 text-xs pt-1 border-t border-slate-800/80">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-sky-400 font-medium">
+                          หมวด: {currentServiceObj.cg_name || 'บริการซ่อม'}
+                        </span>
+                        <span
+                          className={`font-mono font-bold ${
+                            appliedPromo ? 'line-through text-slate-500 text-[11px]' : 'text-emerald-400'
+                          }`}
+                        >
+                          ฿{currentServiceObj.price.toLocaleString()} บาท
+                        </span>
+                      </div>
+
+                      {appliedPromo && (
+                        <>
+                          <div className="flex items-center justify-between text-[11px] text-amber-300 font-medium">
+                            <span className="flex items-center gap-1">
+                              <Tag className="w-3 h-3 text-amber-400" />
+                              <span>ส่วนลด 20% ({appliedPromo}):</span>
+                            </span>
+                            <span className="font-mono font-bold">
+                              -฿{Math.round(currentServiceObj.price * 0.2).toLocaleString()} บาท
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs font-bold text-emerald-400 pt-1 border-t border-slate-800">
+                            <span>ราคาสุทธิหลังหักส่วนลด:</span>
+                            <span className="font-mono text-sm">
+                              ฿{Math.round(currentServiceObj.price * 0.8).toLocaleString()} บาท
+                            </span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-amber-300 font-medium">
-                    ยังไม่ได้ระบุบริการ (ส่งเรื่องเพื่อให้ช่างช่วยประเมินอาการได้)
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-xs text-amber-300 font-medium">
+                      ยังไม่ได้ระบุบริการ (ส่งเรื่องเพื่อให้ช่างช่วยประเมินอาการได้)
+                    </p>
+                    {appliedPromo && (
+                      <p className="text-[11px] text-emerald-400 font-medium">
+                        🎉 ใช้สิทธิ์โค้ด {appliedPromo} รับส่วนลด 20% เมื่อช่างประเมินราคา
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -487,6 +571,85 @@ export const AboutPage: React.FC = () => {
                     );
                   })}
                 </select>
+              </div>
+
+              {/* Promotion Code Section */}
+              <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50 border border-slate-200/90 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-sky-600" />
+                    <span>โค้ดส่วนลดโปรโมชั่น (Promotion Code)</span>
+                  </label>
+                  {appliedPromo && (
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center gap-1">
+                      <Check className="w-3 h-3 text-emerald-700" />
+                      <span>ลด 20% สำเร็จ</span>
+                    </span>
+                  )}
+                </div>
+
+                {appliedPromo ? (
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                    <div className="flex items-center gap-2">
+                      <Percent className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div>
+                        <p className="font-mono font-bold text-xs text-emerald-900">
+                          {appliedPromo} (ส่วนลดค่าบริการ 20%)
+                        </p>
+                        <p className="text-[11px] text-emerald-700">
+                          ใช้สิทธิ์ลดค่าบริการ 20% สำหรับงานซ่อมรายการนี้เรียบร้อยแล้ว
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemovePromo}
+                      className="px-2.5 py-1 rounded-md text-[11px] font-bold text-red-600 hover:bg-red-100 transition-colors cursor-pointer"
+                    >
+                      ยกเลิกโค้ด
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={promoCodeInput}
+                        onChange={(e) => {
+                          setPromoCodeInput(e.target.value);
+                          if (promoError) setPromoError('');
+                        }}
+                        placeholder="กรอกโค้ดส่วนลด เช่น HALLOWEEN20"
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 uppercase placeholder:normal-case placeholder-slate-400 focus:outline-none focus:border-slate-900 transition-colors font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPromo()}
+                        className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors cursor-pointer shrink-0"
+                      >
+                        ใช้โค้ด
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between text-[11px] gap-1 text-slate-500 pt-0.5">
+                      <span>
+                        มีโค้ดโปรโมชั่นประจำเดือน?{' '}
+                        <button
+                          type="button"
+                          onClick={() => handleApplyPromo('HALLOWEEN20')}
+                          className="font-bold text-sky-700 hover:underline cursor-pointer font-mono"
+                        >
+                          คลิกเพื่อใช้โค้ด HALLOWEEN20
+                        </button>
+                      </span>
+                      <span className="text-emerald-700 font-medium">ลด 20% ทุกรายการ</span>
+                    </div>
+
+                    {promoError && (
+                      <p className="text-[11px] text-red-600 font-medium">{promoError}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* 2. Customer Contact Details */}

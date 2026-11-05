@@ -94,6 +94,8 @@ export const inboxMessages = pgTable(
     cm_image: varchar('cm_image', { length: 255 }), // Nullable
     is_read: boolean('is_read').default(false).notNull(),
     repair_status: repairStatusEnum('repair_status').default('pending').notNull(), // 'pending' | 'completed'
+    promo_code: varchar('promo_code', { length: 50 }), // โค้ดโปรโมชั่นส่วนลด เช่น HALLOWEEN20
+    discount_percent: integer('discount_percent').default(0), // เปอร์เซ็นต์ส่วนลด เช่น 20
     final_price: integer('final_price'), // ราคาสุทธิที่บันทึกไว้ตอนปิดงานซ่อมเสร็จ (ป้องกันยอดเพี้ยนเมื่อแก้/ลบบริการภายหลัง)
     completed_at: timestamp('completed_at', { mode: 'date' }), // วันเวลาที่ปิดงานซ่อมเสร็จจริง
     comment: varchar('comment', { length: 500 }), // Nullable

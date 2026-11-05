@@ -23,6 +23,8 @@ import {
   Save,
   RefreshCw,
   PlayCircle,
+  Tag,
+  Percent,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -589,13 +591,27 @@ export const AdminInbox: React.FC = () => {
 
                   <div className="flex items-center justify-between gap-2 text-xs">
                     {msg.service_id ? (
-                      <span className="font-medium text-slate-200 truncate">
-                        {msg.service_name}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-medium text-slate-200 truncate">
+                          {msg.service_name}
+                        </span>
+                        {msg.promo_code && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/70 border border-amber-800 text-amber-300 shrink-0">
+                            -20% ({msg.promo_code})
+                          </span>
+                        )}
+                      </div>
                     ) : (
-                      <span className="text-amber-300 text-[11px] font-semibold">
-                        ปรึกษาช่าง / รอประเมินบริการ
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-amber-300 text-[11px] font-semibold">
+                          ปรึกษาช่าง / รอประเมินบริการ
+                        </span>
+                        {msg.promo_code && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/70 border border-amber-800 text-amber-300">
+                            -20% ({msg.promo_code})
+                          </span>
+                        )}
+                      </div>
                     )}
                     {msg.service_price != null && (
                       <span className="font-mono font-bold text-emerald-400 shrink-0">
@@ -690,16 +706,28 @@ export const AdminInbox: React.FC = () => {
                                   {msg.category_name}
                                 </span>
                               )}
+                              {msg.promo_code && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/70 border border-amber-800 text-amber-300">
+                                  -20% ({msg.promo_code})
+                                </span>
+                              )}
                             </div>
                             <span className="text-[11px] font-bold text-emerald-400 font-mono">
                               ฿{(msg.service_price ?? 0).toLocaleString()}
                             </span>
                           </>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-950/70 text-amber-300 border border-amber-800/60">
-                            <Clock className="w-3 h-3 text-amber-400" />
-                            <span>รอช่างประเมินบริการ</span>
-                          </span>
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-950/70 text-amber-300 border border-amber-800/60">
+                              <Clock className="w-3 h-3 text-amber-400" />
+                              <span>รอช่างประเมินบริการ</span>
+                            </span>
+                            {msg.promo_code && (
+                              <p className="text-[10px] text-emerald-400 font-medium">
+                                * ใช้โค้ด {msg.promo_code} (-20%)
+                              </p>
+                            )}
+                          </div>
                         )}
                       </td>
 
@@ -833,11 +861,19 @@ export const AdminInbox: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 2. บริการที่แจ้งซ่อม */}
+                {/* 2. บริการที่แจ้งซ่อม & โค้ดส่วนลด */}
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
-                  <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
-                    บริการที่แจ้งซ่อม
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                      บริการที่แจ้งซ่อม & ส่วนลด
+                    </p>
+                    {selectedMsg.promo_code && (
+                      <span className="px-2 py-0.5 rounded-md bg-amber-950/70 border border-amber-800/80 text-amber-300 font-bold text-[10px] flex items-center gap-1">
+                        <Tag className="w-3 h-3" />
+                        <span>โค้ด {selectedMsg.promo_code} (-20%)</span>
+                      </span>
+                    )}
+                  </div>
                   {selectedMsg.service_id ? (
                     <div className="space-y-1">
                       <p className="font-bold text-white text-xs leading-snug">
@@ -853,11 +889,23 @@ export const AdminInbox: React.FC = () => {
                           ฿{(selectedMsg.service_price ?? 0).toLocaleString()} บาท
                         </span>
                       </div>
+                      {selectedMsg.promo_code && (
+                        <p className="text-[11px] text-amber-300 pt-0.5">
+                          * รายการนี้มีส่วนลดโปรโมชั่น 20% (คำนวณยอดสุทธิลงในประวัติอัตโนมัติ)
+                        </p>
+                      )}
                     </div>
                   ) : (
-                    <p className="text-amber-300 font-semibold text-xs">
-                      ลูกค้ายังไม่ระบุบริการ (รอช่างตรวจเช็คและเลือกบริการด้านขวา)
-                    </p>
+                    <div className="space-y-1">
+                      <p className="text-amber-300 font-semibold text-xs">
+                        ลูกค้ายังไม่ระบุบริการ (รอช่างตรวจเช็คและเลือกบริการด้านขวา)
+                      </p>
+                      {selectedMsg.promo_code && (
+                        <p className="text-[11px] text-emerald-400">
+                          * ลูกค้าใช้โค้ด {selectedMsg.promo_code} จะได้รับส่วนลด 20% เมื่อเลือกบริการ
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -1074,12 +1122,35 @@ export const AdminInbox: React.FC = () => {
                                 : 'ไม่ระบุ'}
                             </strong>
                           </p>
-                          <p className="text-slate-300">
-                            ยอดค่าบริการสุทธิ:{' '}
-                            <strong className="text-emerald-400 font-mono text-sm">
-                              ฿{selectedServiceObj.price.toLocaleString()} บาท
-                            </strong>
-                          </p>
+                          {selectedMsg.promo_code ? (
+                            <>
+                              <p className="text-slate-300">
+                                ราคาปกติ:{' '}
+                                <span className="line-through text-slate-500 font-mono">
+                                  ฿{selectedServiceObj.price.toLocaleString()} บาท
+                                </span>
+                              </p>
+                              <p className="text-amber-300">
+                                ส่วนลดโปรโมชั่น ({selectedMsg.promo_code}):{' '}
+                                <strong className="font-mono">
+                                  -฿{Math.round(selectedServiceObj.price * 0.2).toLocaleString()} บาท (-20%)
+                                </strong>
+                              </p>
+                              <p className="text-slate-200">
+                                ยอดค่าบริการสุทธิ:{' '}
+                                <strong className="text-emerald-400 font-mono text-sm">
+                                  ฿{Math.round(selectedServiceObj.price * 0.8).toLocaleString()} บาท
+                                </strong>
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-slate-300">
+                              ยอดค่าบริการสุทธิ:{' '}
+                              <strong className="text-emerald-400 font-mono text-sm">
+                                ฿{selectedServiceObj.price.toLocaleString()} บาท
+                              </strong>
+                            </p>
+                          )}
                           <p className="text-[11px] text-slate-400 pt-0.5">
                             เมื่อยืนยันส่งมอบงานแล้ว รายการนี้จะถูกบันทึกเข้าสู่หน้าประวัติการซ่อมพร้อมยอดค่าบริการทันที
                           </p>

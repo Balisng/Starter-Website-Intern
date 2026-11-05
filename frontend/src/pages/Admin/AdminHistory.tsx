@@ -20,6 +20,8 @@ import {
   Award,
   AlertTriangle,
   RefreshCw,
+  Tag,
+  Percent,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
 import { useService } from '../../context/ServiceContext';
@@ -495,8 +497,13 @@ export const AdminHistory: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="text-xs text-slate-300 font-medium">
-                      {item.service_name || 'บริการซ่อมมาตรฐาน'}
+                    <div className="flex items-center gap-1.5 flex-wrap text-xs text-slate-300 font-medium">
+                      <span>{item.service_name || 'บริการซ่อมมาตรฐาน'}</span>
+                      {item.promo_code && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/70 border border-amber-800 text-amber-300">
+                          -20% ({item.promo_code})
+                        </span>
+                      )}
                     </div>
 
                     <p className="text-[11px] text-slate-400 line-clamp-1">
@@ -560,6 +567,11 @@ export const AdminHistory: React.FC = () => {
                             {item.category_name && (
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-950 text-sky-400 border border-sky-800/60">
                                 {item.category_name}
+                              </span>
+                            )}
+                            {item.promo_code && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-950/70 text-amber-300 border border-amber-800/60">
+                                -20% ({item.promo_code})
                               </span>
                             )}
                           </div>
@@ -651,6 +663,12 @@ export const AdminHistory: React.FC = () => {
                 <p className="text-xs text-slate-200 font-semibold mt-0.5">
                   {selectedReceipt.service_name || 'บริการซ่อมมาตรฐาน'}
                 </p>
+                {selectedReceipt.promo_code && (
+                  <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded bg-amber-950/70 border border-amber-800/70 text-amber-300 font-bold text-[10px]">
+                    <Tag className="w-3 h-3" />
+                    <span>ใช้โค้ดส่วนลด: {selectedReceipt.promo_code} (-20%)</span>
+                  </span>
+                )}
               </div>
               <p className="text-2xl font-black text-emerald-400 font-mono">
                 ฿
