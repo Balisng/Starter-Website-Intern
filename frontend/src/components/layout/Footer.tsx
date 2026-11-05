@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Phone, Mail, MapPin, Clock, Cpu } from 'lucide-react';
+import { Phone, Mail, MapPin, Clock } from 'lucide-react';
+import logoImg from '../../assets/logo.jpg';
 
 export const Footer: React.FC = () => {
   return (
@@ -10,8 +11,12 @@ export const Footer: React.FC = () => {
           {/* Col 1: Brand Info */}
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center">
-                <Cpu className="w-4 h-4 text-white" />
+              <div className="w-10 h-8 rounded-lg bg-white border border-slate-700 overflow-hidden flex items-center justify-center shrink-0">
+                <img
+                  src={logoImg}
+                  alt="FixPlease Logo"
+                  className="w-full h-full object-cover scale-125"
+                />
               </div>
               <span className="text-lg font-bold text-white tracking-tight font-['Plus_Jakarta_Sans']">
                 Fix<span className="text-sky-400">Please</span>

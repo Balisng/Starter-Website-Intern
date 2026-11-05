@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ShieldCheck, Cpu } from 'lucide-react';
+import { Menu, X, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import logoImg from '../../assets/logo.jpg';
 
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -22,8 +23,12 @@ export const Navbar: React.FC = () => {
         <div className="flex justify-between items-center h-16">
           {/* Brand Logo */}
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center group-hover:bg-sky-600 transition-colors duration-200">
-              <Cpu className="w-5 h-5 text-white stroke-[2]" />
+            <div className="w-11 h-9 rounded-lg bg-white border border-slate-200 shadow-2xs overflow-hidden flex items-center justify-center shrink-0 group-hover:border-sky-400 transition-colors duration-200">
+              <img
+                src={logoImg}
+                alt="FixPlease Logo"
+                className="w-full h-full object-cover scale-125"
+              />
             </div>
             <div className="flex flex-col">
               <span className="text-lg font-extrabold tracking-tight text-slate-900 leading-none font-['Plus_Jakarta_Sans']">

@@ -11,11 +11,11 @@ import {
   Home,
   Menu,
   X,
-  Cpu,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useService } from '../../context/ServiceContext';
 import { apiRequest } from '../../api/client';
+import logoImg from '../../assets/logo.jpg';
 
 export const AdminLayout: React.FC = () => {
   const { user, loading, logout } = useAuth();
@@ -130,8 +130,12 @@ export const AdminLayout: React.FC = () => {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center">
-            <Cpu className="w-4 h-4 text-white" />
+          <div className="w-9 h-7 rounded-lg bg-white border border-slate-700 overflow-hidden flex items-center justify-center shrink-0">
+            <img
+              src={logoImg}
+              alt="FixPlease Logo"
+              className="w-full h-full object-cover scale-125"
+            />
           </div>
           <span className="font-bold text-sm tracking-tight font-['Plus_Jakarta_Sans']">
             Fix<span className="text-sky-400">Please</span>
@@ -165,8 +169,12 @@ export const AdminLayout: React.FC = () => {
           {/* Brand & Portal Title */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-sky-600 flex items-center justify-center shrink-0">
-                <Cpu className="w-5 h-5 text-white" />
+              <div className="w-11 h-9 rounded-xl bg-white border border-slate-700 overflow-hidden flex items-center justify-center shrink-0">
+                <img
+                  src={logoImg}
+                  alt="FixPlease Logo"
+                  className="w-full h-full object-cover scale-125"
+                />
               </div>
               <div>
                 <span className="text-base font-bold text-white font-['Plus_Jakarta_Sans'] tracking-tight">

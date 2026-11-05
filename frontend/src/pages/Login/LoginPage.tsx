@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, User, Eye, EyeOff, ArrowRight, AlertCircle, Cpu } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useService } from '../../context/ServiceContext';
+import logoImg from '../../assets/logo.jpg';
 
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -45,9 +46,13 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="min-h-[82vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#f8fafc]">
       <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <div className="w-11 h-11 rounded-xl bg-slate-900 flex items-center justify-center mx-auto">
-            <Cpu className="w-5 h-5 text-white stroke-[2.2]" />
+        <div className="text-center space-y-2.5">
+          <div className="w-16 h-13 rounded-2xl bg-white border border-slate-200 shadow-2xs overflow-hidden flex items-center justify-center mx-auto">
+            <img
+              src={logoImg}
+              alt="FixPlease Logo"
+              className="w-full h-full object-cover scale-125"
+            />
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
