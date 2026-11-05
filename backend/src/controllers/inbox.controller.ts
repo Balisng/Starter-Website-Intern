@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
 import { Request, Response } from 'express';
 import { db } from '../config/db';
 import { categories, inboxMessages, services, users } from '../db/schema';
@@ -15,7 +15,6 @@ export async function createInboxMessage(req: Request, res: Response): Promise<v
 
     let validServiceId: number | null = null;
 
-    // หากเลือกระบุ service_id มา ให้ตรวจสอบว่าบริการมีอยู่จริง
     if (input.service_id) {
       const [service] = await db
         .select()
@@ -79,17 +78,23 @@ export async function getAllInboxMessages(req: Request, res: Response): Promise<
       conditions.push(eq(inboxMessages.is_read, false));
     }
 
-    // กรองตามสถานะการซ่อม
-    if (repair_status === 'pending' || repair_status === 'completed') {
+    // กรองตามสถานะการซ่อม ('active' = ยังไม่เสร็จ คือทั้ง pending และ in_progress)
+    if (repair_status === 'active') {
+      conditions.push(ne(inboxMessages.repair_status, 'completed'));
+    } else if (
+      repair_status === 'pending' ||
+      repair_status === 'in_progress' ||
+      repair_status === 'completed'
+    ) {
       conditions.push(eq(inboxMessages.repair_status, repair_status));
     }
 
-    // กรองตามหมวดหมู่สินค้า/บริการ (สำหรับช่างแต่ละด้าน)
+    // กรองตามหมวดหมู่สินค้า/บริการ
     if (category_id && category_id !== 'all') {
       conditions.push(eq(categories.cg_id, Number(category_id)));
     }
 
-    // กรองตามบริการ หรือเฉพาะรายการที่ยังไม่ได้ระบุบริการ (service_id IS NULL)
+    // กรองตามบริการ หรือเฉพาะรายการที่ยังไม่ได้ระบุบริการ
     if (service_id) {
       if (service_id === 'unassigned' || service_id === 'null') {
         conditions.push(sql`${inboxMessages.service_id} IS NULL`);
@@ -268,9 +273,10 @@ export async function markInboxMessageAsRead(req: Request, res: Response): Promi
 
 /**
  * PATCH /api/inbox/:id/status
- * อัปเดตสถานะการซ่อม หรือยืนยันส่งมอบงานและคิดเงินถาวร
- * กฎสำคัญ: เมื่อเปลี่ยนเป็น 'completed' (ส่งงานและคิดเงินแล้ว) ระบบจะล็อก final_price และ completed_at ถาวร
- * ห้ามเปลี่ยนสถานะกลับเป็น 'pending' เพื่อป้องกันยอดขายในบัญชีหาย
+ * อัปเดตสถานะการซ่อม ('pending' | 'in_progress' | 'completed') และมอบหมายช่างผู้รับผิดชอบ
+ * - Admin: เลือก/เปลี่ยนช่างผู้รับผิดชอบงานได้ และปรับสถานะได้ทุกสถานะ
+ * - Technician: เห็นช่างผู้รับผิดชอบแต่เปลี่ยนเป็นคนอื่นไม่ได้ สามารถกดรับงาน / อัปเดตสถานะการซ่อมได้
+ * - เมื่อเปลี่ยนเป็น 'completed' ระบบจะบันทึก final_price และ completed_at ถาวร
  */
 export async function updateInboxMessageStatus(req: Request, res: Response): Promise<void> {
   try {
@@ -293,13 +299,13 @@ export async function updateInboxMessageStatus(req: Request, res: Response): Pro
       return;
     }
 
-    // กฎล็อกยอดขายถาวร: หากใบงานนี้ส่งมอบงานและคิดเงินไปแล้ว (completed) ห้ามเปลี่ยนกลับเป็น pending หรือแก้บริการเด็ดขาด
+    // กฎล็อกยอดขายถาวร: หากใบงานนี้ส่งมอบงานแล้ว (completed) ห้ามเปลี่ยนกลับเป็นสถานะอื่นหรือแก้บริการเด็ดขาด
     if (existing.repair_status === 'completed') {
       if (input.repair_status && input.repair_status !== 'completed') {
         res.status(400).json({
           success: false,
           message:
-            'รายการนี้ส่งมอบงานและคิดเงินเข้าบัญชีอย่างถาวรแล้ว ไม่สามารถเปลี่ยนสถานะกลับเป็นรอซ่อมได้',
+            'รายการนี้ส่งมอบงานเรียบร้อยแล้ว ไม่สามารถย้อนสถานะกลับเป็นรอดำเนินการได้',
         });
         return;
       }
@@ -307,13 +313,13 @@ export async function updateInboxMessageStatus(req: Request, res: Response): Pro
         res.status(400).json({
           success: false,
           message:
-            'รายการนี้คิดเงินเข้าบัญชีถาวรแล้ว ไม่สามารถเปลี่ยนแปลงรายการบริการหรือราคาได้',
+            'รายการนี้ส่งมอบงานเรียบร้อยแล้ว ไม่สามารถเปลี่ยนแปลงรายการบริการหรือราคาได้',
         });
         return;
       }
     }
 
-    // กฎสิทธิ์สำหรับช่าง: ช่างสามารถแก้ไขได้เฉพาะงานของตัวเอง หรืองานที่ยังไม่มีผู้รับผิดชอบ (technician_id เป็น null) เท่านั้น
+    // กฎสิทธิ์สำหรับช่าง: ช่างสามารถอัปเดตสถานะได้เฉพาะงานที่มอบหมายให้ตนเอง หรืองานที่ยังไม่มีผู้รับผิดชอบเท่านั้น
     if (
       req.user?.role === 'technician' &&
       existing.technician_id !== null &&
@@ -326,74 +332,70 @@ export async function updateInboxMessageStatus(req: Request, res: Response): Pro
       return;
     }
 
-    // ตรวจสอบสถานะและ service_id หลังการอัปเดต
     const targetServiceId = input.service_id !== undefined ? input.service_id : existing.service_id;
     const targetRepairStatus = input.repair_status || existing.repair_status;
 
-    // กฎสำคัญ: หากจะเปลี่ยนสถานะเป็น "ซ่อมเสร็จแล้ว / ส่งมอบงาน (completed)" ต้องมีการเลือกผูก Service ที่ซ่อมจริงก่อน
     if (targetRepairStatus === 'completed' && !targetServiceId) {
       res.status(400).json({
         success: false,
         message:
-          'กรุณาเลือกบริการที่ซ่อมจริงก่อนกดส่งมอบงานและคิดเงิน เพื่อให้ระบบบันทึกยอดรายรับเข้าบัญชีอย่างถาวร',
+          'กรุณาเลือกบริการที่ดำเนินการซ่อมก่อนกดส่งมอบงาน เพื่อบันทึกข้อมูลลงในประวัติงานซ่อม',
       });
       return;
     }
 
-    // จัดการ technician_id
+    // จัดการ technician_id: เฉพาะ Admin เท่านั้นที่เลือก/เปลี่ยนช่างผู้รับผิดชอบได้โดยอิสระ
+    // ส่วนช่าง (technician) หากรับงานที่ยังว่างอยู่ ระบบจะผูกชื่อช่างคนนั้นให้อัตโนมัติ แต่ไม่สามารถเปลี่ยนชื่อผู้รับผิดชอบเป็นคนอื่นได้
     let targetTechnicianId: number | null | undefined = existing.technician_id;
-    if (req.user?.role === 'technician') {
-      targetTechnicianId = req.user.u_id;
-    } else if (input.technician_id !== undefined) {
-      targetTechnicianId = input.technician_id;
+    if (req.user?.role === 'admin') {
+      if (input.technician_id !== undefined) {
+        targetTechnicianId = input.technician_id;
+      }
+    } else if (req.user?.role === 'technician') {
+      if (!existing.technician_id) {
+        targetTechnicianId = req.user.u_id;
+      }
     }
 
-    // หากปิดงาน (completed) ต้องมีช่างผู้รับผิดชอบเพื่อบันทึกประวัติผลงานช่าง (ป้องกันช่างอู้งาน)
     if (targetRepairStatus === 'completed' && !targetTechnicianId) {
       res.status(400).json({
         success: false,
         message:
-          'กรุณาระบุช่างผู้รับผิดชอบงานซ่อมก่อนส่งมอบงานและคิดเงิน เพื่อบันทึกในประวัติผลงานช่าง',
+          'กรุณาระบุช่างผู้รับผิดชอบงานซ่อมก่อนส่งมอบงาน เพื่อบันทึกในประวัติผลงานช่าง',
       });
       return;
     }
 
-    if (targetTechnicianId) {
-      const [tech] = await db
-        .select()
-        .from(users)
-        .where(eq(users.u_id, targetTechnicianId))
-        .limit(1);
+    // ตรวจสอบข้อมูลช่างและบริการแบบขนาน (Parallel Validation)
+    const [techResult, srvResult] = await Promise.all([
+      targetTechnicianId
+        ? db.select().from(users).where(eq(users.u_id, targetTechnicianId)).limit(1)
+        : Promise.resolve([]),
+      targetServiceId
+        ? db.select().from(services).where(eq(services.id, targetServiceId)).limit(1)
+        : Promise.resolve([]),
+    ]);
 
-      if (!tech) {
-        res.status(400).json({
-          success: false,
-          message: 'ไม่พบข้อมูลช่างที่ระบุในระบบ',
-        });
-        return;
-      }
+    if (targetTechnicianId && !techResult[0]) {
+      res.status(400).json({
+        success: false,
+        message: 'ไม่พบข้อมูลช่างที่ระบุในระบบ',
+      });
+      return;
     }
 
-    // ตรวจสอบบริการที่เลือก และดึงราคาเพื่อบันทึก final_price ตอนปิดงาน
     let selectedServicePrice: number | null = null;
     if (targetServiceId) {
-      const [srv] = await db
-        .select()
-        .from(services)
-        .where(eq(services.id, targetServiceId))
-        .limit(1);
-
-      if (!srv) {
+      if (!srvResult[0]) {
         res.status(400).json({
           success: false,
           message: 'ไม่พบบริการที่เลือก (Invalid service_id)',
         });
         return;
       }
-      selectedServicePrice = srv.price;
+      selectedServicePrice = srvResult[0].price;
     }
 
-    // คำนวณ final_price และ completed_at เพื่อล็อกราคาและเวลาตอนปิดงานซ่อมอย่างถาวร
     let finalPrice: number | null = existing.final_price;
     let completedAt: Date | null = existing.completed_at;
 
@@ -409,7 +411,7 @@ export async function updateInboxMessageStatus(req: Request, res: Response): Pro
     const [updated] = await db
       .update(inboxMessages)
       .set({
-        ...input,
+        comment: input.comment !== undefined ? input.comment : existing.comment,
         service_id: targetServiceId,
         repair_status: targetRepairStatus,
         technician_id: targetTechnicianId,
@@ -424,8 +426,10 @@ export async function updateInboxMessageStatus(req: Request, res: Response): Pro
       success: true,
       message:
         targetRepairStatus === 'completed'
-          ? 'ส่งมอบงานและบันทึกยอดเงินเข้าบัญชีอย่างถาวรเรียบร้อยแล้ว'
-          : 'บันทึกข้อมูลความคืบหน้างานซ่อมเรียบร้อยแล้ว',
+          ? 'ส่งมอบงานซ่อมเรียบร้อยแล้ว'
+          : targetRepairStatus === 'in_progress'
+          ? 'อัปเดตสถานะเป็นกำลังดำเนินการซ่อมเรียบร้อยแล้ว'
+          : 'บันทึกข้อมูลงานซ่อมเรียบร้อยแล้ว',
       data: updated,
     });
   } catch (error) {
@@ -439,7 +443,7 @@ export async function updateInboxMessageStatus(req: Request, res: Response): Pro
 
 /**
  * DELETE /api/inbox/:id
- * ลบข้อความแจ้งซ่อม (เฉพาะ Admin — และห้ามลบรายการที่คิดเงินเข้าบัญชีถาวรแล้ว)
+ * ลบข้อความแจ้งซ่อม (เฉพาะ Admin — และห้ามลบรายการที่ส่งมอบงานแล้ว)
  */
 export async function deleteInboxMessage(req: Request, res: Response): Promise<void> {
   try {
@@ -463,7 +467,7 @@ export async function deleteInboxMessage(req: Request, res: Response): Promise<v
     if (existing.repair_status === 'completed') {
       res.status(400).json({
         success: false,
-        message: 'ไม่สามารถลบรายการที่ส่งงานและคิดเงินเข้าบัญชีถาวรแล้วได้ เพื่อรักษาความถูกต้องของประวัติการเงิน',
+        message: 'ไม่สามารถลบรายการที่ส่งมอบงานเสร็จสิ้นแล้วได้ เพื่อรักษาความถูกต้องของประวัติการซ่อม',
       });
       return;
     }

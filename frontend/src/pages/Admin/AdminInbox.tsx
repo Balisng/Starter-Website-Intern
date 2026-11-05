@@ -21,20 +21,29 @@ import {
   FileCheck2,
   ShieldCheck,
   Save,
+  RefreshCw,
+  PlayCircle,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import type { Category, InboxMessage, Service, User } from '../../types';
+import { useService } from '../../context/ServiceContext';
+import type { Category, InboxMessage, RepairStatus, Service, User } from '../../types';
 import { ImageLightbox } from '../../components/ui/ImageLightbox';
 
 export const AdminInbox: React.FC = () => {
   const { user } = useAuth();
+  const { showToast } = useService();
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [flashKey, setFlashKey] = useState<number>(0);
+
+  // Filters
+  const [statusTab, setStatusTab] = useState<'active' | 'pending' | 'in_progress'>('active');
   const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [search, setSearch] = useState<string>('');
 
-  // Categories, Services and Technicians metadata
+  // Metadata
   const [categories, setCategories] = useState<Category[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [technicians, setTechnicians] = useState<User[]>([]);
@@ -42,30 +51,37 @@ export const AdminInbox: React.FC = () => {
   const [serviceFilter, setServiceFilter] = useState<string>('all');
   const [technicianFilter, setTechnicianFilter] = useState<string>('all');
 
-  // Lightbox State
+  // Lightbox
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
 
   // Selected message for detail modal
   const [selectedMsg, setSelectedMsg] = useState<InboxMessage | null>(null);
   const [updateServiceId, setUpdateServiceId] = useState<number | null>(null);
   const [updateTechnicianId, setUpdateTechnicianId] = useState<number | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<RepairStatus>('pending');
   const [updateComment, setUpdateComment] = useState<string>('');
   const [serviceValidationError, setServiceValidationError] = useState<string>('');
   const [updating, setUpdating] = useState<boolean>(false);
   const [confirmFinalizeOpen, setConfirmFinalizeOpen] = useState<boolean>(false);
-  const [toastAlert, setToastAlert] = useState<string | null>(null);
 
-  // Auto-hide Toast Alert
-  useEffect(() => {
-    if (toastAlert) {
-      const timer = setTimeout(() => setToastAlert(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toastAlert]);
-
-  // Delete message confirmation
+  // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<InboxMessage | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
+
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (deleteTarget) {
+          setDeleteTarget(null);
+        } else if (selectedMsg) {
+          setSelectedMsg(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedMsg, deleteTarget]);
 
   // Fetch Categories, Services & Technicians on mount
   useEffect(() => {
@@ -82,18 +98,21 @@ export const AdminInbox: React.FC = () => {
           setTechnicians(userRes.data.filter((u) => u.role === 'technician'));
         }
       } catch (err) {
-        console.error('Error fetching categories, services, or technicians:', err);
+        console.error('Error fetching metadata:', err);
       }
     };
     fetchMetadata();
   }, []);
 
-  // ดึงเฉพาะรายการที่ "รอซ่อม (pending)" เท่านั้น เพราะรายการที่ซ่อมเสร็จจะย้ายไปหน้าประวัติการซ่อม (/admin/history)
-  const fetchMessages = async () => {
-    setLoading(true);
+  const fetchMessages = async (isManualRefresh: boolean = false) => {
+    if (isManualRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const params: any = {
-        repair_status: 'pending',
+        repair_status: statusTab,
       };
       if (readFilter !== 'all') params.read_status = readFilter;
       if (categoryFilter !== 'all') params.category_id = categoryFilter;
@@ -105,27 +124,36 @@ export const AdminInbox: React.FC = () => {
       if (res.success && res.data) {
         setMessages(res.data);
       }
+      if (isManualRefresh) {
+        setFlashKey((prev) => prev + 1);
+        showToast('รีเฟรชข้อมูลคิวงานซ่อมล่าสุดเรียบร้อยแล้ว');
+      }
     } catch (err) {
       console.error('Error fetching inbox messages:', err);
+      if (isManualRefresh) {
+        showToast('ไม่สามารถรีเฟรชข้อมูลได้ กรุณาลองอีกครั้ง', 'error');
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchMessages();
-  }, [readFilter, categoryFilter, serviceFilter, technicianFilter]);
+    fetchMessages(false);
+  }, [statusTab, readFilter, categoryFilter, serviceFilter, technicianFilter]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchMessages();
+    fetchMessages(true);
   };
 
-  // Open Message Detail (Marks read via PATCH /api/inbox/:id/read, then fetches detail via GET /api/inbox/:id)
+  // Open Message Detail
   const openMessageDetail = async (msg: InboxMessage) => {
     setSelectedMsg(msg);
     setUpdateServiceId(msg.service_id ?? null);
     setUpdateTechnicianId(msg.technician_id ?? null);
+    setUpdateStatus(msg.repair_status === 'in_progress' ? 'in_progress' : 'pending');
     setUpdateComment(msg.comment || '');
     setServiceValidationError('');
     setConfirmFinalizeOpen(false);
@@ -139,6 +167,7 @@ export const AdminInbox: React.FC = () => {
         setSelectedMsg({ ...res.data, is_read: true });
         setUpdateServiceId(res.data.service_id ?? null);
         setUpdateTechnicianId(res.data.technician_id ?? null);
+        setUpdateStatus(res.data.repair_status === 'in_progress' ? 'in_progress' : 'pending');
         setMessages((prev) =>
           prev.map((m) => (m.cm_id === msg.cm_id ? { ...m, is_read: true } : m))
         );
@@ -148,16 +177,15 @@ export const AdminInbox: React.FC = () => {
     }
   };
 
-  // 1. บันทึกความคืบหน้า (ยังคงสถานะรอซ่อม pending)
-  const handleSaveProgress = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // บันทึกสถานะ ('pending' หรือ 'in_progress') และข้อมูลงานซ่อม
+  const handleUpdateWorkStatus = async (targetStatus: 'pending' | 'in_progress') => {
     if (!selectedMsg) return;
     setServiceValidationError('');
     setUpdating(true);
 
     try {
       const payload: any = {
-        repair_status: 'pending',
+        repair_status: targetStatus,
         comment: updateComment.trim() || null,
         service_id: updateServiceId || null,
       };
@@ -174,28 +202,33 @@ export const AdminInbox: React.FC = () => {
       );
 
       if (res.success) {
-        setToastAlert('บันทึกความคืบหน้างานซ่อมเรียบร้อยแล้ว');
+        showToast(
+          targetStatus === 'in_progress'
+            ? `รับงานและเปลี่ยนสถานะเป็น "กำลังซ่อม / ดำเนินการ" แล้ว`
+            : 'บันทึกข้อมูลความคืบหน้างานซ่อมเรียบร้อยแล้ว'
+        );
         setSelectedMsg(null);
-        fetchMessages();
+        fetchMessages(false);
       }
     } catch (err: any) {
-      setServiceValidationError(err.message || 'ไม่สามารถบันทึกความคืบหน้าได้');
+      setServiceValidationError(err.message || 'ไม่สามารถบันทึกข้อมูลได้');
+      showToast(err.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
     } finally {
       setUpdating(false);
     }
   };
 
-  // 2. ตรวจสอบก่อนเปิดกล่องยืนยัน "ส่งมอบงาน & คิดเงินถาวร"
+  // ตรวจสอบก่อนเปิดกล่องยืนยัน "ส่งมอบงานซ่อม"
   const handleInitiateFinalize = () => {
     if (!updateServiceId) {
       setServiceValidationError(
-        'กรุณาเลือก "บริการที่ซ่อมจริง" ก่อนกดส่งมอบงานและคิดเงิน เพื่อคำนวณยอดเงินเข้าบัญชี'
+        'กรุณาเลือก "บริการที่ดำเนินการซ่อมจริง" ก่อนกดส่งมอบงานซ่อม'
       );
       return;
     }
     if (user?.role === 'admin' && !updateTechnicianId) {
       setServiceValidationError(
-        'กรุณาเลือก "ช่างผู้รับผิดชอบ" ก่อนส่งมอบงาน เพื่อบันทึกผลงานลงในประวัติของช่าง'
+        'กรุณาเลือก "ช่างผู้รับผิดชอบ" ทางด้านซ้ายก่อนกดส่งมอบงานซ่อม'
       );
       return;
     }
@@ -203,8 +236,8 @@ export const AdminInbox: React.FC = () => {
     setConfirmFinalizeOpen(true);
   };
 
-  // 3. ยืนยันส่งมอบงานและคิดเงินเข้าบัญชีถาวร (ย้ายไปหน้าประวัติการซ่อม)
-  const handleConfirmFinalizeAndBill = async () => {
+  // ยืนยันส่งมอบงานซ่อม (ย้ายไปหน้าประวัติการซ่อม)
+  const handleConfirmFinalize = async () => {
     if (!selectedMsg || !updateServiceId) return;
     setUpdating(true);
     setServiceValidationError('');
@@ -230,17 +263,18 @@ export const AdminInbox: React.FC = () => {
       if (res.success) {
         setConfirmFinalizeOpen(false);
         setSelectedMsg(null);
-        setToastAlert('ส่งมอบงานและบันทึกยอดเงินเข้าบัญชีถาวรแล้ว (ย้ายไปหน้าประวัติการซ่อม)');
-        fetchMessages();
+        showToast('ส่งมอบงานซ่อมเรียบร้อยแล้ว (ย้ายไปยังหน้าประวัติการซ่อม)');
+        fetchMessages(false);
       }
     } catch (err: any) {
       setServiceValidationError(err.message || 'ไม่สามารถส่งมอบงานได้');
+      showToast(err.message || 'ไม่สามารถส่งมอบงานได้', 'error');
     } finally {
       setUpdating(false);
     }
   };
 
-  // Delete Message (DELETE /api/inbox/:id - Admin only)
+  // Delete Message (Admin only)
   const handleDeleteMessage = async () => {
     if (!deleteTarget) return;
 
@@ -250,28 +284,30 @@ export const AdminInbox: React.FC = () => {
         method: 'DELETE',
       });
       if (res.success) {
+        showToast(`ลบใบงาน #${deleteTarget.cm_id} เรียบร้อยแล้ว`);
         setDeleteTarget(null);
         if (selectedMsg?.cm_id === deleteTarget.cm_id) {
           setSelectedMsg(null);
         }
-        fetchMessages();
+        fetchMessages(false);
       }
     } catch (err: any) {
-      alert(err.message || 'ไม่สามารถลบข้อความได้');
+      showToast(err.message || 'ไม่สามารถลบข้อความได้', 'error');
     } finally {
       setDeleting(false);
     }
   };
 
   const unreadTotal = messages.filter((m) => !m.is_read).length;
+  const pendingTotal = messages.filter((m) => m.repair_status === 'pending').length;
+  const inProgressTotal = messages.filter((m) => m.repair_status === 'in_progress').length;
 
-  // Filter services shown in dropdown based on selected category
   const filteredServicesForDropdown =
     categoryFilter === 'all'
       ? services
       : services.filter((s) => s.cg_id === categoryFilter);
 
-  // ช่างสามารถแก้ได้เฉพาะงานของตัวเอง หรืองานที่ยังไม่มีผู้รับผิดชอบ
+  // ช่างสามารถอัปเดตสถานะได้เฉพาะงานของตัวเอง หรืองานที่ยังไม่มีผู้รับผิดชอบ
   const isLockedForCurrentTechnician =
     user?.role === 'technician' &&
     Boolean(selectedMsg?.technician_id && selectedMsg.technician_id !== user.u_id);
@@ -279,12 +315,38 @@ export const AdminInbox: React.FC = () => {
   const selectedServiceObj = services.find((s) => s.id === updateServiceId) || null;
   const selectedTechObj =
     user?.role === 'technician'
-      ? user
+      ? selectedMsg?.technician_id
+        ? technicians.find((t) => t.u_id === selectedMsg.technician_id) || user
+        : user
       : technicians.find((t) => t.u_id === updateTechnicianId) || null;
+
+  const renderStatusBadge = (status: RepairStatus) => {
+    if (status === 'in_progress') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-950/90 text-sky-300 border border-sky-700/70 whitespace-nowrap">
+          <PlayCircle className="w-3 h-3 text-sky-400" />
+          <span>กำลังซ่อม / ดำเนินการ</span>
+        </span>
+      );
+    }
+    if (status === 'completed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/90 text-emerald-300 border border-emerald-700/70 whitespace-nowrap">
+          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+          <span>ส่งมอบงานแล้ว</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/90 text-amber-300 border border-amber-700/70 whitespace-nowrap">
+        <Clock className="w-3 h-3 text-amber-400" />
+        <span>รอรับงานซ่อม</span>
+      </span>
+    );
+  };
 
   return (
     <div className="space-y-5 text-slate-100">
-      {/* Lightbox Modal */}
       <ImageLightbox
         src={lightboxImage?.src || null}
         alt={lightboxImage?.alt}
@@ -292,86 +354,133 @@ export const AdminInbox: React.FC = () => {
       />
 
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-xl bg-sky-950/80 border border-sky-800/60 text-sky-400">
+            <span className="p-1.5 rounded-xl bg-sky-950 border border-sky-800/60 text-sky-400">
               <Inbox className="w-4 h-4" />
             </span>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-              คิวงานแจ้งซ่อมที่รอดำเนินการ (Active Inbox)
+            <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+              คิวงานแจ้งซ่อมและสถานะการดำเนินงาน
             </h1>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            แสดงเฉพาะงานที่กำลังรอประเมินหรือกำลังซ่อม เมื่อกดส่งมอบงานและคิดเงินแล้ว รายการจะย้ายไปที่หน้าประวัติการซ่อมโดยอัตโนมัติ
+          <p className="text-xs text-slate-400 mt-1 text-pretty">
+            <span className="inline-block">ตรวจสอบคำขอแจ้งซ่อม มอบหมายช่างผู้รับผิดชอบ</span>{' '}
+            <span className="inline-block">และอัปเดตสถานะตั้งแต่รับงานจนถึงส่งมอบงาน</span>
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {unreadTotal > 0 && (
-            <div className="px-3 py-1.5 rounded-xl bg-sky-950/80 border border-sky-800/70 text-sky-300 text-xs font-bold flex items-center gap-2">
+            <div className="px-3 py-1.5 rounded-xl bg-sky-950 border border-sky-800 text-sky-300 text-xs font-bold flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
               <span>ข้อความใหม่ {unreadTotal} รายการ</span>
             </div>
           )}
 
+          <button
+            onClick={() => fetchMessages(true)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-sky-400' : ''}`} />
+            <span>{refreshing ? 'กำลังรีเฟรช...' : 'รีเฟรช'}</span>
+          </button>
+
           <Link
             to="/admin/history"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/60 hover:bg-emerald-950 border border-emerald-800/60 text-emerald-300 text-xs font-bold transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-800/60 text-emerald-300 text-xs font-bold transition-colors"
           >
             <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>ดูประวัติการซ่อม & ผลงานช่าง</span>
+            <span>ดูประวัติงานที่ส่งมอบแล้ว</span>
           </Link>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
       <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
-        {/* Row 1: Read Tabs & Search Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl text-xs font-semibold border border-slate-800 self-start">
-            <button
-              onClick={() => setReadFilter('all')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                readFilter === 'all'
-                  ? 'bg-sky-600 text-white font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              คิวงานทั้งหมด ({messages.length})
-            </button>
-            <button
-              onClick={() => setReadFilter('unread')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
-                readFilter === 'unread'
-                  ? 'bg-sky-600 text-white font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>ยังไม่อ่าน</span>
-              {unreadTotal > 0 && (
-                <span className="w-2 h-2 rounded-full bg-sky-300 animate-pulse"></span>
-              )}
-            </button>
-            <button
-              onClick={() => setReadFilter('read')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                readFilter === 'read'
-                  ? 'bg-slate-800 text-slate-200 font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              อ่านแล้ว
-            </button>
+        {/* Row 1: Repair Status Tabs, Read Filter & Search */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Status Filter */}
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl text-xs font-semibold border border-slate-800">
+              <button
+                onClick={() => setStatusTab('active')}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                  statusTab === 'active'
+                    ? 'bg-sky-600 text-white font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                คิวงานทั้งหมด ({messages.length})
+              </button>
+              <button
+                onClick={() => setStatusTab('pending')}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                  statusTab === 'pending'
+                    ? 'bg-amber-600 text-white font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                รอรับงาน ({statusTab === 'active' ? pendingTotal : statusTab === 'pending' ? messages.length : '...'})
+              </button>
+              <button
+                onClick={() => setStatusTab('in_progress')}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                  statusTab === 'in_progress'
+                    ? 'bg-sky-600 text-white font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                กำลังซ่อม ({statusTab === 'active' ? inProgressTotal : statusTab === 'in_progress' ? messages.length : '...'})
+              </button>
+            </div>
+
+            {/* Read Status Filter */}
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl text-xs font-semibold border border-slate-800">
+              <button
+                onClick={() => setReadFilter('all')}
+                className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                  readFilter === 'all'
+                    ? 'bg-slate-800 text-white font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                ทุกการอ่าน
+              </button>
+              <button
+                onClick={() => setReadFilter('unread')}
+                className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  readFilter === 'unread'
+                    ? 'bg-sky-600 text-white font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <span>ยังไม่อ่าน</span>
+                {unreadTotal > 0 && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-300"></span>
+                )}
+              </button>
+              <button
+                onClick={() => setReadFilter('read')}
+                className={`px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                  readFilter === 'read'
+                    ? 'bg-slate-800 text-slate-200 font-bold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                อ่านแล้ว
+              </button>
+            </div>
           </div>
 
-          <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-72">
+          <form onSubmit={handleSearchSubmit} className="relative w-full lg:w-72">
             <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="ค้นหาชื่อ, เบอร์, อีเมล, อาการ..."
+              placeholder="ค้นหาชื่อ, เบอร์โทร, อีเมล, อาการ..."
               className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
             />
           </form>
@@ -426,8 +535,13 @@ export const AdminInbox: React.FC = () => {
         </div>
       </div>
 
-      {/* Messages List (Responsive Mobile Cards + Desktop Table) */}
-      <div className="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden">
+      {/* Messages List */}
+      <div
+        key={flashKey}
+        className={`rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden ${
+          flashKey > 0 ? 'animate-refresh-flash' : ''
+        }`}
+      >
         {loading ? (
           <div className="py-16 text-center text-xs text-slate-400">
             กำลังโหลดคิวงานซ่อม...
@@ -435,7 +549,7 @@ export const AdminInbox: React.FC = () => {
         ) : messages.length === 0 ? (
           <div className="py-16 px-4 text-center space-y-2">
             <p className="text-xs text-slate-400">
-              ไม่มีคิวงานรอซ่อมในเงื่อนไขนี้ (งานที่ส่งมอบแล้วจะอยู่ในหน้าประวัติการซ่อม)
+              ไม่มีคิวงานซ่อมในเงื่อนไขนี้ (รายการที่ส่งมอบแล้วจะอยู่ในหน้าประวัติการซ่อม)
             </p>
             <Link
               to="/admin/history"
@@ -470,9 +584,7 @@ export const AdminInbox: React.FC = () => {
                         {msg.cm_username}
                       </span>
                     </div>
-                    <span className="text-[11px] font-mono text-slate-400 shrink-0">
-                      {msg.cm_cel}
-                    </span>
+                    {renderStatusBadge(msg.repair_status)}
                   </div>
 
                   <div className="flex items-center justify-between gap-2 text-xs">
@@ -498,18 +610,23 @@ export const AdminInbox: React.FC = () => {
                     {msg.technician_name ? (
                       <span className="text-sky-400 font-semibold flex items-center gap-1">
                         <Wrench className="w-3 h-3" />
-                        ช่าง {msg.technician_name}
+                        ช่าง {msg.technician_name} {msg.technician_surname || ''}
                       </span>
                     ) : (
                       <span className="text-slate-500">ยังไม่มีช่างรับงาน</span>
                     )}
 
-                    <span className="text-slate-400">
-                      {new Date(msg.created_at).toLocaleString('th-TH', {
-                        dateStyle: 'short',
-                        timeStyle: 'short',
-                      })}
-                    </span>
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      {user?.role === 'admin' && (
+                        <button
+                          onClick={() => setDeleteTarget(msg)}
+                          className="px-2 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>ลบ</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -522,8 +639,9 @@ export const AdminInbox: React.FC = () => {
                   <tr>
                     <th className="py-3 px-4 font-semibold w-14 text-center">การอ่าน</th>
                     <th className="py-3 px-4 font-semibold">ลูกค้า & เบอร์ติดต่อ</th>
-                    <th className="py-3 px-4 font-semibold">บริการที่เลือก & ราคาประเมิน</th>
+                    <th className="py-3 px-4 font-semibold">บริการ & ราคาประเมิน</th>
                     <th className="py-3 px-4 font-semibold">อาการเสีย</th>
+                    <th className="py-3 px-4 font-semibold">สถานะงาน</th>
                     <th className="py-3 px-4 font-semibold">ช่างผู้รับผิดชอบ</th>
                     <th className="py-3 px-4 font-semibold">เวลาที่แจ้ง</th>
                     <th className="py-3 px-4 font-semibold text-right">จัดการ</th>
@@ -543,7 +661,7 @@ export const AdminInbox: React.FC = () => {
                       <td className="py-3.5 px-4 text-center">
                         {!msg.is_read ? (
                           <span
-                            className="inline-block w-2.5 h-2.5 rounded-full bg-sky-400 shadow-xs shadow-sky-400/50"
+                            className="inline-block w-2.5 h-2.5 rounded-full bg-sky-400"
                             title="ข้อความใหม่"
                           ></span>
                         ) : (
@@ -589,6 +707,8 @@ export const AdminInbox: React.FC = () => {
                         <p className="text-slate-300 line-clamp-1">{msg.cm_symptom}</p>
                       </td>
 
+                      <td className="py-3.5 px-4">{renderStatusBadge(msg.repair_status)}</td>
+
                       <td className="py-3.5 px-4">
                         {msg.technician_name ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-950/70 border border-sky-800/60 text-sky-300 font-semibold whitespace-nowrap">
@@ -619,16 +739,16 @@ export const AdminInbox: React.FC = () => {
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => openMessageDetail(msg)}
-                            title="จัดการงานซ่อม / ส่งมอบงาน"
-                            className="p-1.5 rounded-lg text-sky-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                            title="เปิดดูและจัดการใบงาน"
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 transition-colors cursor-pointer"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
                           {user?.role === 'admin' && (
                             <button
                               onClick={() => setDeleteTarget(msg)}
-                              title="ลบข้อความนี้ (เฉพาะ Admin)"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="ลบใบแจ้งซ่อมนี้"
+                              className="p-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors cursor-pointer"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -645,350 +765,418 @@ export const AdminInbox: React.FC = () => {
       </div>
 
       {/* ======================================================== */}
-      {/* MESSAGE DETAIL & BILLING HANDOVER MODAL */}
+      {/* MESSAGE DETAIL MODAL (2-Column Layout + Click Outside to Close) */}
       {/* ======================================================== */}
       {selectedMsg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl p-5 sm:p-6 space-y-4 shadow-2xl animate-modal relative max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={() => setSelectedMsg(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-xs animate-backdrop"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-4xl p-4 sm:p-6 space-y-4 shadow-2xl animate-modal relative max-h-[92vh] overflow-y-auto"
+          >
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-950 border border-slate-800 text-slate-200">
-                  Ticket #{selectedMsg.cm_id}
+            <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-800">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-slate-950 border border-slate-800 text-slate-200">
+                  ใบงาน #{selectedMsg.cm_id}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-950/80 text-amber-300 border border-amber-800/60 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>กำลังดำเนินการซ่อม</span>
+                {renderStatusBadge(selectedMsg.repair_status)}
+                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                  • แจ้งเมื่อ {new Date(selectedMsg.created_at).toLocaleString('th-TH')}
                 </span>
               </div>
+
               <button
                 onClick={() => setSelectedMsg(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white cursor-pointer"
+                title="ปิดหน้าต่าง (หรือคลิกพื้นที่ด้านนอกกล่อง)"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Customer, Service & Technician Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
-              <div className="space-y-1">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">ข้อมูลลูกค้า</p>
-                <p className="font-bold text-white text-sm">{selectedMsg.cm_username}</p>
-                <p className="text-slate-300 flex items-center gap-1.5 pt-0.5">
-                  <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
-                  <a
-                    href={`tel:${selectedMsg.cm_cel}`}
-                    className="hover:underline font-mono text-sky-400"
-                  >
-                    {selectedMsg.cm_cel}
-                  </a>
-                </p>
-                <p className="text-slate-300 flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-sky-400" />
-                  <a
-                    href={`mailto:${selectedMsg.cm_email}`}
-                    className="hover:underline text-sky-400 truncate"
-                  >
-                    {selectedMsg.cm_email}
-                  </a>
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">บริการที่แจ้งซ่อม</p>
-                {selectedMsg.service_id ? (
-                  <>
-                    <p className="font-bold text-white text-xs line-clamp-2">
-                      {selectedMsg.service_name}
-                    </p>
-                    <p className="text-emerald-400 font-extrabold text-sm font-mono">
-                      ฿{(selectedMsg.service_price ?? 0).toLocaleString()} บาท
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-amber-300 font-semibold text-xs">
-                    ลูกค้าไม่แน่ใจอาการ (รอช่างเลือกบริการด้านล่าง)
+            {/* 2-COLUMN BODY: Left = Customer, Service, Technician | Right = Description & Repair Log */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* LEFT COLUMN (lg:col-span-5): ข้อมูลลูกค้า / บริการที่แจ้งซ่อม / ช่างผู้รับผิดชอบ */}
+              <div className="lg:col-span-5 space-y-3.5">
+                {/* 1. ข้อมูลลูกค้า */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                  <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                    ข้อมูลลูกค้า
                   </p>
-                )}
-                <p className="text-slate-400 text-[11px] flex items-center gap-1 pt-0.5">
-                  <Calendar className="w-3 h-3" />
-                  <span>{new Date(selectedMsg.created_at).toLocaleString('th-TH')}</span>
-                </p>
-              </div>
+                  <p className="font-bold text-white text-sm">{selectedMsg.cm_username}</p>
+                  <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                    <p className="text-slate-300 flex items-center gap-2">
+                      <PhoneCall className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <a
+                        href={`tel:${selectedMsg.cm_cel}`}
+                        className="hover:underline font-mono text-sky-400 font-semibold"
+                      >
+                        {selectedMsg.cm_cel}
+                      </a>
+                    </p>
+                    <p className="text-slate-300 flex items-center gap-2">
+                      <Mail className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                      <a
+                        href={`mailto:${selectedMsg.cm_email}`}
+                        className="hover:underline text-sky-400 truncate"
+                      >
+                        {selectedMsg.cm_email}
+                      </a>
+                    </p>
+                    <p className="text-slate-400 text-[11px] flex items-center gap-2 pt-0.5">
+                      <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span>{new Date(selectedMsg.created_at).toLocaleString('th-TH')}</span>
+                    </p>
+                  </div>
+                </div>
 
-              <div className="space-y-1">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">ช่างผู้รับผิดชอบ</p>
-                {selectedMsg.technician_name ? (
-                  <div className="p-2 rounded-lg bg-sky-950/50 border border-sky-800/50 text-sky-300">
-                    <div className="flex items-center gap-1.5 font-bold text-xs">
-                      <UserCheck className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                      <span>
-                        ช่าง {selectedMsg.technician_name} {selectedMsg.technician_surname || ''}
-                      </span>
+                {/* 2. บริการที่แจ้งซ่อม */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                  <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+                    บริการที่แจ้งซ่อม
+                  </p>
+                  {selectedMsg.service_id ? (
+                    <div className="space-y-1">
+                      <p className="font-bold text-white text-xs leading-snug">
+                        {selectedMsg.service_name}
+                      </p>
+                      <div className="flex items-center justify-between pt-1">
+                        {selectedMsg.category_name && (
+                          <span className="px-2 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-800/60 text-[10px] font-bold">
+                            {selectedMsg.category_name}
+                          </span>
+                        )}
+                        <span className="text-emerald-400 font-extrabold text-sm font-mono">
+                          ฿{(selectedMsg.service_price ?? 0).toLocaleString()} บาท
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 text-xs">
-                    ยังไม่มีช่างรับงาน
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Symptom Details */}
-            <div className="space-y-1">
-              <h4 className="text-xs font-bold text-slate-300">อาการเสียที่ลูกค้าแจ้ง:</h4>
-              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 leading-relaxed">
-                {selectedMsg.cm_symptom}
-              </div>
-            </div>
-
-            {/* Product Image with Lightbox */}
-            {selectedMsg.cm_image && (
-              <div className="space-y-1">
-                <h4 className="text-xs font-bold text-slate-300">รูปภาพประกอบ (คลิกเพื่อขยาย):</h4>
-                <div
-                  onClick={() =>
-                    setLightboxImage({
-                      src: selectedMsg.cm_image!,
-                      alt: `Ticket #${selectedMsg.cm_id}`,
-                    })
-                  }
-                  className="relative group cursor-zoom-in rounded-xl overflow-hidden border border-slate-800 max-h-44 bg-slate-950 flex items-center justify-center"
-                >
-                  <img
-                    src={selectedMsg.cm_image}
-                    alt="Customer equipment"
-                    className="max-h-44 object-contain"
-                  />
-                  <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1 text-xs">
-                    <ZoomIn className="w-4 h-4" />
-                    <span>คลิกดูรูปขยาย</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Technician Workspace & Billing Form */}
-            <form
-              onSubmit={handleSaveProgress}
-              className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5"
-            >
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-sky-400" />
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                  บันทึกการซ่อม & ส่งมอบงานคิดเงิน
-                </h4>
-              </div>
-
-              {/* Service Assignment Dropdown */}
-              <div className="space-y-1 text-xs">
-                <label className="font-bold text-slate-300 flex items-center gap-1.5">
-                  <Wrench className="w-3.5 h-3.5 text-sky-400" />
-                  <span>บริการที่ดำเนินการซ่อมจริง (Service):</span>
-                </label>
-                <select
-                  disabled={isLockedForCurrentTechnician}
-                  value={updateServiceId ?? ''}
-                  onChange={(e) => {
-                    const val = e.target.value ? Number(e.target.value) : null;
-                    setUpdateServiceId(val);
-                    setConfirmFinalizeOpen(false);
-                    if (val) setServiceValidationError('');
-                  }}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-sky-500 cursor-pointer disabled:opacity-50"
-                >
-                  <option value="">-- ยังไม่ระบุบริการ (อยู่ระหว่างตรวจเช็คอาการ) --</option>
-                  {categories.map((cat) => {
-                    const catServices = services.filter((s) => s.cg_id === cat.cg_id);
-                    if (catServices.length === 0) return null;
-                    return (
-                      <optgroup key={cat.cg_id} label={`หมวดหมู่: ${cat.cg_name}`}>
-                        {catServices.map((srv) => (
-                          <option key={srv.id} value={srv.id}>
-                            {srv.name} (฿{srv.price.toLocaleString()} บาท)
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
-              </div>
-
-              {/* Technician Assignment */}
-              {user?.role === 'admin' ? (
-                <div className="space-y-1 text-xs">
-                  <label className="font-bold text-slate-300 flex items-center gap-1.5">
-                    <UserCog className="w-3.5 h-3.5 text-sky-400" />
-                    <span>ช่างผู้รับผิดชอบงานซ่อม:</span>
-                  </label>
-                  <select
-                    value={updateTechnicianId ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value ? Number(e.target.value) : null;
-                      setUpdateTechnicianId(val);
-                      setConfirmFinalizeOpen(false);
-                      if (val) setServiceValidationError('');
-                    }}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-sky-500 cursor-pointer"
-                  >
-                    <option value="">-- เลือกช่างผู้รับผิดชอบ --</option>
-                    {technicians.map((t) => (
-                      <option key={t.u_id} value={t.u_id}>
-                        ช่าง {t.u_name} {t.u_surname} ({t.cel})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
-                  {selectedMsg.technician_id === user?.u_id ? (
-                    <p className="text-emerald-400 font-semibold">
-                      ✓ คุณ (ช่าง {user?.u_name} {user?.u_surname}) เป็นผู้รับผิดชอบงานนี้
-                    </p>
-                  ) : !selectedMsg.technician_id ? (
-                    <p className="text-sky-300 font-medium">
-                      ℹ️ เมื่อกดบันทึกหรือส่งมอบงาน ระบบจะผูกชื่อของคุณ (ช่าง {user?.u_name}{' '}
-                      {user?.u_surname}) เป็นผู้รับผิดชอบทันที
-                    </p>
                   ) : (
-                    <p className="text-amber-300 font-semibold">
-                      🔒 งานนี้อยู่ในความรับผิดชอบของ ช่าง {selectedMsg.technician_name}{' '}
-                      {selectedMsg.technician_surname || ''}
+                    <p className="text-amber-300 font-semibold text-xs">
+                      ลูกค้ายังไม่ระบุบริการ (รอช่างตรวจเช็คและเลือกบริการด้านขวา)
                     </p>
                   )}
                 </div>
-              )}
 
-              {/* Comment Field */}
-              <div className="space-y-1 text-xs">
-                <label className="font-bold text-slate-300">
-                  บันทึกการซ่อม / รายละเอียดแจ้งลูกค้า:
-                </label>
-                <textarea
-                  rows={2}
-                  disabled={isLockedForCurrentTechnician}
-                  value={updateComment}
-                  onChange={(e) => setUpdateComment(e.target.value)}
-                  placeholder="ระบุการซ่อม เช่น เปลี่ยนอะไหล่เรียบร้อย ทดสอบผ่านทุกจุด..."
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 text-xs focus:outline-none focus:border-sky-500 disabled:opacity-50"
-                ></textarea>
-              </div>
+                {/* 3. ช่างผู้รับผิดชอบ (Admin เลือกได้ / ช่างเห็นแต่แก้ไขไม่ได้) */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <UserCog className="w-3.5 h-3.5 text-sky-400" />
+                      <span>ช่างผู้รับผิดชอบงานซ่อม</span>
+                    </p>
+                    {user?.role === 'technician' && (
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
+                        ดูได้อย่างเดียว
+                      </span>
+                    )}
+                  </div>
 
-              {/* Validation Error Alert */}
-              {serviceValidationError && (
-                <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                  <span>{serviceValidationError}</span>
-                </div>
-              )}
-
-              {/* Inline Permanent Billing Confirmation Box */}
-              {confirmFinalizeOpen && selectedServiceObj && (
-                <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-700/70 space-y-3 animate-fade">
-                  <div className="flex items-start gap-2.5">
-                    <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                    <div className="space-y-1 text-xs">
-                      <p className="font-bold text-emerald-300 text-sm">
-                        ยืนยันการส่งมอบงานและคิดเงินเข้าบัญชีอย่างถาวร?
-                      </p>
-                      <p className="text-slate-300">
-                        บริการ: <strong className="text-white">{selectedServiceObj.name}</strong>
-                      </p>
-                      <p className="text-slate-300">
-                        ช่างผู้ส่งงาน:{' '}
-                        <strong className="text-sky-300">
-                          {selectedTechObj
-                            ? `ช่าง ${selectedTechObj.u_name} ${selectedTechObj.u_surname}`
-                            : 'ไม่ระบุ'}
-                        </strong>
-                      </p>
-                      <p className="text-slate-300">
-                        ยอดเงินที่จะบันทึกถาวร:{' '}
-                        <strong className="text-emerald-400 font-mono text-sm">
-                          ฿{selectedServiceObj.price.toLocaleString()} บาท
-                        </strong>
-                      </p>
-                      <p className="text-[11px] text-slate-400 pt-0.5">
-                        * เมื่อยืนยันแล้ว ยอดเงินจะถูกบันทึกเข้าบัญชีอย่างถาวร และใบงานจะย้ายไปอยู่ในหน้า "ประวัติการซ่อม" ทันที (ไม่สามารถเปลี่ยนกลับเป็นรอซ่อมได้)
-                      </p>
+                  {/* แสดงผู้รับผิดชอบปัจจุบัน */}
+                  {selectedMsg.technician_name ? (
+                    <div className="p-2.5 rounded-xl bg-sky-950/60 border border-sky-800/70 text-sky-200 flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                      <div>
+                        <p className="font-bold text-xs text-white">
+                          ช่าง {selectedMsg.technician_name} {selectedMsg.technician_surname || ''}
+                        </p>
+                        <p className="text-[11px] text-sky-300">
+                          {selectedMsg.repair_status === 'in_progress'
+                            ? 'สถานะ: กำลังดำเนินการซ่อมงานนี้'
+                            : 'สถานะ: ได้รับมอบหมายงานนี้แล้ว'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 text-xs">
+                      ยังไม่มีช่างผู้รับผิดชอบงานนี้
+                    </div>
+                  )}
 
-                  <div className="flex items-center justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmFinalizeOpen(false)}
-                      className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
-                    >
-                      ยกเลิก
-                    </button>
-                    <button
-                      type="button"
-                      disabled={updating}
-                      onClick={handleConfirmFinalizeAndBill}
-                      className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
-                    >
-                      {updating ? 'กำลังบันทึก...' : '✓ ยืนยันคิดเงินถาวร & ส่งงาน'}
-                    </button>
-                  </div>
+                  {/* เฉพาะ Admin เท่านั้นที่เลือกหรือเปลี่ยนช่างผู้รับผิดชอบได้ */}
+                  {user?.role === 'admin' ? (
+                    <div className="space-y-1.5 pt-1">
+                      <label className="text-[11px] font-semibold text-slate-300 block">
+                        มอบหมายหรือเปลี่ยนช่างผู้รับผิดชอบ (เฉพาะ Admin):
+                      </label>
+                      <select
+                        value={updateTechnicianId ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value ? Number(e.target.value) : null;
+                          setUpdateTechnicianId(val);
+                          setConfirmFinalizeOpen(false);
+                          if (val) setServiceValidationError('');
+                        }}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-100 text-xs focus:outline-none focus:border-sky-500 cursor-pointer"
+                      >
+                        <option value="">-- ยังไม่ระบุช่างผู้รับผิดชอบ --</option>
+                        {technicians.map((t) => (
+                          <option key={t.u_id} value={t.u_id}>
+                            ช่าง {t.u_name} {t.u_surname} ({t.cel})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      {selectedMsg.technician_id === user?.u_id
+                        ? 'คุณเป็นผู้รับผิดชอบงานซ่อมนี้ สามารถอัปเดตสถานะและบันทึกการซ่อมทางด้านขวาได้'
+                        : !selectedMsg.technician_id
+                        ? 'เมื่อคุณกด "รับงานซ่อมนี้" ทางด้านขวา ระบบจะลงชื่อของคุณเป็นผู้รับผิดชอบอัตโนมัติ'
+                        : 'งานนี้อยู่ในความรับผิดชอบของช่างท่านอื่น คุณสามารถดูรายละเอียดได้แต่ไม่สามารถแก้ไขได้'}
+                    </p>
+                  )}
                 </div>
-              )}
 
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-800">
-                {user?.role === 'admin' ? (
+                {/* ปุ่มลบใบงานสำหรับ Admin (สีแดงชัดเจน) */}
+                {user?.role === 'admin' && (
                   <button
                     type="button"
                     onClick={() => setDeleteTarget(selectedMsg)}
-                    className="text-xs font-semibold text-slate-400 hover:text-rose-400 flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+                    className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                     <span>ลบใบแจ้งซ่อมนี้</span>
                   </button>
-                ) : (
-                  <div />
                 )}
+              </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <button
-                    type="submit"
-                    disabled={updating || isLockedForCurrentTechnician}
-                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                  >
-                    <Save className="w-3.5 h-3.5 text-sky-400" />
-                    <span>บันทึกความคืบหน้า (ยังซ่อมไม่เสร็จ)</span>
-                  </button>
+              {/* RIGHT COLUMN (lg:col-span-7): รายละเอียดอาการเสีย (Description) & บันทึกการซ่อม / สถานะ */}
+              <div className="lg:col-span-7 space-y-4">
+                {/* 1. รายละเอียดอาการเสียที่ลูกค้าแจ้ง (พื้นที่กว้างอ่านสบายตา) */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                      รายละเอียดอาการเสีย (Description)
+                    </h4>
+                  </div>
 
-                  {!confirmFinalizeOpen && (
-                    <button
-                      type="button"
-                      disabled={updating || isLockedForCurrentTechnician}
-                      onClick={handleInitiateFinalize}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>ส่งมอบงาน & คิดเงินถาวร</span>
-                    </button>
+                  <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800/90 text-xs sm:text-sm text-slate-100 leading-relaxed whitespace-pre-wrap break-words min-h-[84px]">
+                    {selectedMsg.cm_symptom}
+                  </div>
+
+                  {/* รูปภาพประกอบ (ถ้ามี) */}
+                  {selectedMsg.cm_image && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-xs font-bold text-slate-300">
+                        รูปภาพประกอบจากลูกค้า (คลิกเพื่อดูภาพขนาดใหญ่):
+                      </p>
+                      <div
+                        onClick={() =>
+                          setLightboxImage({
+                            src: selectedMsg.cm_image!,
+                            alt: `ใบงาน #${selectedMsg.cm_id}`,
+                          })
+                        }
+                        className="relative group cursor-zoom-in rounded-xl overflow-hidden border border-slate-800 max-h-52 bg-slate-900 flex items-center justify-center"
+                      >
+                        <img
+                          src={selectedMsg.cm_image}
+                          alt="Customer equipment"
+                          className="max-h-52 object-contain"
+                        />
+                        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1 text-xs">
+                          <ZoomIn className="w-4 h-4" />
+                          <span>คลิกดูรูปขนาดใหญ่</span>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
+
+                {/* 2. บันทึกการซ่อม & การจัดการสถานะงานซ่อม */}
+                <div className="p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-sky-400" />
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                      บันทึกการซ่อมและอัปเดตสถานะงาน
+                    </h4>
+                  </div>
+
+                  {/* เลือกบริการที่ซ่อมจริง */}
+                  <div className="space-y-1.5 text-xs">
+                    <label className="font-bold text-slate-300 flex items-center gap-1.5">
+                      <Wrench className="w-3.5 h-3.5 text-sky-400" />
+                      <span>รายการบริการที่ดำเนินการซ่อมจริง:</span>
+                    </label>
+                    <select
+                      disabled={isLockedForCurrentTechnician}
+                      value={updateServiceId ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value ? Number(e.target.value) : null;
+                        setUpdateServiceId(val);
+                        setConfirmFinalizeOpen(false);
+                        if (val) setServiceValidationError('');
+                      }}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-sky-500 cursor-pointer disabled:opacity-50"
+                    >
+                      <option value="">-- ยังไม่ระบุบริการ (อยู่ระหว่างตรวจเช็คอาการ) --</option>
+                      {categories.map((cat) => {
+                        const catServices = services.filter((s) => s.cg_id === cat.cg_id);
+                        if (catServices.length === 0) return null;
+                        return (
+                          <optgroup key={cat.cg_id} label={`หมวดหมู่: ${cat.cg_name}`}>
+                            {catServices.map((srv) => (
+                              <option key={srv.id} value={srv.id}>
+                                {srv.name} (฿{srv.price.toLocaleString()} บาท)
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  {/* บันทึกการซ่อม (พื้นที่กว้าง) */}
+                  <div className="space-y-1.5 text-xs">
+                    <label className="font-bold text-slate-300 block">
+                      บันทึกการซ่อม / รายละเอียดความคืบหน้า:
+                    </label>
+                    <textarea
+                      rows={4}
+                      disabled={isLockedForCurrentTechnician}
+                      value={updateComment}
+                      onChange={(e) => setUpdateComment(e.target.value)}
+                      placeholder="ระบุผลการตรวจเช็ค อะไหล่ที่เปลี่ยน หรือรายละเอียดงานซ่อม..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 text-xs leading-relaxed focus:outline-none focus:border-sky-500 disabled:opacity-50"
+                    ></textarea>
+                  </div>
+
+                  {/* Validation Error Alert */}
+                  {serviceValidationError && (
+                    <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                      <span>{serviceValidationError}</span>
+                    </div>
+                  )}
+
+                  {/* กล่องยืนยันก่อนส่งมอบงานซ่อม */}
+                  {confirmFinalizeOpen && selectedServiceObj && (
+                    <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-700/70 space-y-3 animate-fade">
+                      <div className="flex items-start gap-2.5">
+                        <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                        <div className="space-y-1 text-xs">
+                          <p className="font-bold text-emerald-300 text-sm">
+                            ยืนยันการส่งมอบงานซ่อมรายการนี้?
+                          </p>
+                          <p className="text-slate-300">
+                            บริการที่ดำเนินการ:{' '}
+                            <strong className="text-white">{selectedServiceObj.name}</strong>
+                          </p>
+                          <p className="text-slate-300">
+                            ช่างผู้รับผิดชอบ:{' '}
+                            <strong className="text-sky-300">
+                              {selectedTechObj
+                                ? `ช่าง ${selectedTechObj.u_name} ${selectedTechObj.u_surname}`
+                                : 'ไม่ระบุ'}
+                            </strong>
+                          </p>
+                          <p className="text-slate-300">
+                            ยอดค่าบริการสุทธิ:{' '}
+                            <strong className="text-emerald-400 font-mono text-sm">
+                              ฿{selectedServiceObj.price.toLocaleString()} บาท
+                            </strong>
+                          </p>
+                          <p className="text-[11px] text-slate-400 pt-0.5">
+                            เมื่อยืนยันส่งมอบงานแล้ว รายการนี้จะถูกบันทึกเข้าสู่หน้าประวัติการซ่อมพร้อมยอดค่าบริการทันที
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmFinalizeOpen(false)}
+                          className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                        >
+                          ยกเลิก
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updating}
+                          onClick={handleConfirmFinalize}
+                          className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                        >
+                          {updating ? 'กำลังบันทึก...' : 'ยืนยันส่งมอบงานซ่อม'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ปุ่มเปลี่ยนสถานะการดำเนินงาน (รอรับงาน / รับงานซ่อมนี้-กำลังซ่อม / ส่งมอบงานซ่อม) */}
+                  <div className="pt-2 border-t border-slate-800 space-y-2.5">
+                    <p className="text-[11px] font-bold text-slate-400">
+                      เลือกอัปเดตสถานะการดำเนินงาน:
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* ปุ่มที่ 1: บันทึกเป็นรอรับงานซ่อม (กรณี Admin มอบหมายช่างหรือบันทึกหมายเหตุเบื้องต้น) */}
+                      <button
+                        type="button"
+                        disabled={updating || isLockedForCurrentTechnician}
+                        onClick={() => handleUpdateWorkStatus('pending')}
+                        className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Save className="w-3.5 h-3.5 text-amber-400" />
+                        <span>บันทึกข้อมูล (รอรับงาน)</span>
+                      </button>
+
+                      {/* ปุ่มที่ 2: รับงานซ่อมนี้ / กำลังซ่อมและดำเนินการ */}
+                      <button
+                        type="button"
+                        disabled={updating || isLockedForCurrentTechnician}
+                        onClick={() => handleUpdateWorkStatus('in_progress')}
+                        className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <PlayCircle className="w-4 h-4" />
+                        <span>
+                          {selectedMsg.repair_status === 'in_progress'
+                            ? 'อัปเดตงาน (กำลังซ่อม / ดำเนินการ)'
+                            : 'รับงานซ่อมนี้ (เริ่มดำเนินการซ่อม)'}
+                        </span>
+                      </button>
+
+                      {/* ปุ่มที่ 3: ส่งมอบงานซ่อม (ไม่มีคำว่า "(คิดเงินถาวร)") */}
+                      {!confirmFinalizeOpen && (
+                        <button
+                          type="button"
+                          disabled={updating || isLockedForCurrentTechnician}
+                          onClick={handleInitiateFinalize}
+                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ml-auto"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>ส่งมอบงานซ่อม</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
 
-      {/* DELETE CONFIRMATION MODAL */}
+      {/* DELETE CONFIRMATION MODAL (Click outside to close + Red Delete Button) */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 text-center space-y-4 shadow-2xl animate-modal">
-            <div className="w-11 h-11 rounded-xl bg-rose-950/60 border border-rose-800/60 text-rose-400 flex items-center justify-center mx-auto">
+        <div
+          onClick={() => setDeleteTarget(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-5 text-center space-y-4 shadow-2xl animate-modal"
+          >
+            <div className="w-11 h-11 rounded-xl bg-red-950/80 border border-red-800/70 text-red-400 flex items-center justify-center mx-auto">
               <Trash2 className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-sm font-bold text-white">ยืนยันการลบใบแจ้งซ่อม?</h3>
               <p className="text-xs text-slate-400 mt-1">
-                ต้องการลบคำขอของ "{deleteTarget.cm_username}" (Ticket #{deleteTarget.cm_id}) หรือไม่?
+                ต้องการลบคำขอของ "{deleteTarget.cm_username}" (ใบงาน #{deleteTarget.cm_id}) หรือไม่?
               </p>
             </div>
             <div className="flex items-center justify-center gap-2.5 pt-1">
@@ -1001,26 +1189,12 @@ export const AdminInbox: React.FC = () => {
               <button
                 onClick={handleDeleteMessage}
                 disabled={deleting}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors cursor-pointer"
               >
                 {deleting ? 'กำลังลบ...' : 'ยืนยันลบ'}
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Toast Alert Notification */}
-      {toastAlert && (
-        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-xl animate-fade max-w-sm">
-          <CheckCircle2 className="w-4 h-4 text-emerald-100 shrink-0" />
-          <span className="text-xs font-bold">{toastAlert}</span>
-          <button
-            onClick={() => setToastAlert(null)}
-            className="ml-auto text-white/80 hover:text-white cursor-pointer font-bold text-xs"
-          >
-            ✕
-          </button>
         </div>
       )}
     </div>

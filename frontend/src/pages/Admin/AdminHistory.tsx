@@ -19,19 +19,24 @@ import {
   ArrowLeft,
   Award,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
+import { useService } from '../../context/ServiceContext';
 import type { Category, InboxMessage, User } from '../../types';
 import { ImageLightbox } from '../../components/ui/ImageLightbox';
 
 export const AdminHistory: React.FC = () => {
+  const { showToast } = useService();
   const [allMessages, setAllMessages] = useState<InboxMessage[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [technicians, setTechnicians] = useState<User[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [flashKey, setFlashKey] = useState<number>(0);
 
   // Filters
-  const [selectedTechId, setSelectedTechId] = useState<string>('all'); // 'all' | string(u_id)
+  const [selectedTechId, setSelectedTechId] = useState<string>('all');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'all'>('all');
   const [periodFilter, setPeriodFilter] = useState<'all' | 'today' | 'weekly' | 'monthly'>('all');
   const [search, setSearch] = useState<string>('');
@@ -40,8 +45,12 @@ export const AdminHistory: React.FC = () => {
   const [selectedReceipt, setSelectedReceipt] = useState<InboxMessage | null>(null);
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (isManualRefresh: boolean = false) => {
+    if (isManualRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const [msgRes, catRes, userRes] = await Promise.all([
         apiRequest<InboxMessage[]>('/inbox'),
@@ -58,18 +67,26 @@ export const AdminHistory: React.FC = () => {
       if (userRes.success && userRes.data) {
         setTechnicians(userRes.data.filter((u) => u.role === 'technician'));
       }
+      if (isManualRefresh) {
+        setFlashKey((prev) => prev + 1);
+        showToast('รีเฟรชข้อมูลประวัติการซ่อมล่าสุดเรียบร้อยแล้ว');
+      }
     } catch (err) {
       console.error('Error loading repair history:', err);
+      if (isManualRefresh) {
+        showToast('ไม่สามารถรีเฟรชข้อมูลได้', 'error');
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(false);
   }, []);
 
-  // เฉพาะรายการที่ส่งงานและคิดเงินเรียบร้อยแล้ว (completed)
+  // เฉพาะรายการที่ส่งมอบงานเรียบร้อยแล้ว (completed)
   const completedMessages = useMemo(
     () =>
       allMessages
@@ -82,7 +99,7 @@ export const AdminHistory: React.FC = () => {
     [allMessages]
   );
 
-  // คำนวณผลงานและประวัติของช่างแต่ละคน (เพื่อติดตามการทำงานและป้องกันช่างอู้งาน)
+  // คำนวณผลงานและประวัติของช่างแต่ละคน (นับรวมทั้ง pending และ in_progress เป็นงานที่ถืออยู่ในมือ)
   const technicianStats = useMemo(() => {
     const now = new Date();
     const sevenDaysAgo = new Date();
@@ -90,8 +107,8 @@ export const AdminHistory: React.FC = () => {
 
     return technicians.map((tech) => {
       const techCompleted = completedMessages.filter((m) => m.technician_id === tech.u_id);
-      const techPending = allMessages.filter(
-        (m) => m.repair_status === 'pending' && m.technician_id === tech.u_id
+      const techActive = allMessages.filter(
+        (m) => m.repair_status !== 'completed' && m.technician_id === tech.u_id
       );
 
       const totalRevenue = techCompleted.reduce(
@@ -112,7 +129,7 @@ export const AdminHistory: React.FC = () => {
       return {
         ...tech,
         completedCount: techCompleted.length,
-        pendingCount: techPending.length,
+        pendingCount: techActive.length,
         weeklyCompletedCount,
         totalRevenue,
         lastCompletedAt,
@@ -130,23 +147,19 @@ export const AdminHistory: React.FC = () => {
     thirtyDaysAgo.setDate(now.getDate() - 30);
 
     return completedMessages.filter((m) => {
-      // กรองตามช่าง
       if (selectedTechId !== 'all' && String(m.technician_id) !== selectedTechId) {
         return false;
       }
 
-      // กรองตามหมวดหมู่
       if (selectedCategoryId !== 'all' && m.category_id !== selectedCategoryId) {
         return false;
       }
 
-      // กรองตามช่วงเวลาที่ปิดงาน (completed_at)
       const finishedDate = new Date(m.completed_at || m.created_at);
       if (periodFilter === 'today' && finishedDate < startOfToday) return false;
       if (periodFilter === 'weekly' && finishedDate < sevenDaysAgo) return false;
       if (periodFilter === 'monthly' && finishedDate < thirtyDaysAgo) return false;
 
-      // กรองตามคำค้นหา
       if (search.trim()) {
         const q = search.trim().toLowerCase();
         const matchName = m.cm_username.toLowerCase().includes(q);
@@ -179,7 +192,12 @@ export const AdminHistory: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 text-slate-100">
+    <div
+      key={flashKey}
+      className={`space-y-6 text-slate-100 rounded-2xl ${
+        flashKey > 0 ? 'animate-refresh-flash' : ''
+      }`}
+    >
       <ImageLightbox
         src={lightboxImage?.src || null}
         alt={lightboxImage?.alt}
@@ -187,37 +205,46 @@ export const AdminHistory: React.FC = () => {
       />
 
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-xl bg-emerald-950/80 border border-emerald-800/60 text-emerald-400">
+            <span className="p-1.5 rounded-xl bg-emerald-950 border border-emerald-800/60 text-emerald-400">
               <FileCheck2 className="w-4 h-4" />
             </span>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-              ประวัติการซ่อม & ผลงานช่าง (Repair History)
+            <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+              ประวัติงานซ่อมที่ส่งมอบแล้ว & ผลงานช่าง
             </h1>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            รวบรวมงานที่ส่งมอบและคิดเงินเข้าบัญชีอย่างถาวรแล้ว พร้อมติดตามประวัติการทำงานของช่างแต่ละคน
+            รวบรวมรายการซ่อมที่ส่งมอบงานเรียบร้อยแล้ว พร้อมติดตามสถิติการทำงานของช่างแต่ละคน
           </p>
         </div>
 
-        <Link
-          to="/admin/inbox"
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-sky-400 transition-colors self-start sm:self-auto"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>กลับไปคิวงานรอซ่อม (Inbox)</span>
-        </Link>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-sky-400' : ''}`} />
+            <span>{refreshing ? 'กำลังรีเฟรช...' : 'รีเฟรช'}</span>
+          </button>
+
+          <Link
+            to="/admin/inbox"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-sky-400 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>กลับไปคิวงานซ่อม</span>
+          </Link>
+        </div>
       </div>
 
-      {/* ======================================================== */}
-      {/* 1. PERMANENT REVENUE & COMPLETION SUMMARY */}
-      {/* ======================================================== */}
+      {/* 1. REVENUE & COMPLETION SUMMARY */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 to-emerald-950/30 border border-emerald-800/50 space-y-1.5">
+        <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-emerald-800/50 space-y-1.5">
           <div className="flex items-center justify-between text-xs text-emerald-300 font-bold">
-            <span>ยอดเงินเข้าบัญชีถาวรสะสม</span>
+            <span>ยอดรายรับสุทธิสะสม</span>
             <DollarSign className="w-4 h-4 text-emerald-400" />
           </div>
           <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-mono">
@@ -225,7 +252,7 @@ export const AdminHistory: React.FC = () => {
           </p>
           <p className="text-[11px] text-slate-400 flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>ล็อกยอดถาวรแล้ว ไม่ลดลงเมื่อแก้ราคาบริการ</span>
+            <span>บันทึกยอดตามจริงเมื่อส่งมอบงาน</span>
           </p>
         </div>
 
@@ -238,14 +265,12 @@ export const AdminHistory: React.FC = () => {
             {completedMessages.length}{' '}
             <span className="text-xs font-normal text-slate-400">รายการ</span>
           </p>
-          <p className="text-[11px] text-slate-400">
-            ซ่อมเสร็จและชำระเงินเรียบร้อยแล้ว
-          </p>
+          <p className="text-[11px] text-slate-400">ซ่อมเสร็จและส่งมอบเรียบร้อยแล้ว</p>
         </div>
 
         <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-1.5">
           <div className="flex items-center justify-between text-xs text-slate-300 font-bold">
-            <span>ยอดเงินตามตัวกรองที่เลือก</span>
+            <span>ยอดรวมตามตัวกรองที่เลือก</span>
             <Filter className="w-4 h-4 text-indigo-400" />
           </div>
           <p className="text-2xl sm:text-3xl font-black text-sky-400 font-mono">
@@ -257,18 +282,16 @@ export const AdminHistory: React.FC = () => {
         </div>
       </div>
 
-      {/* ======================================================== */}
-      {/* 2. PER-TECHNICIAN TRACK RECORD (ป้องกันช่างอู้งาน) */}
-      {/* ======================================================== */}
+      {/* 2. PER-TECHNICIAN TRACK RECORD */}
       <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
               <Award className="w-4 h-4 text-sky-400" />
-              <span>ตารางติดตามผลงานช่างแต่ละคน (คลิกเพื่อดูประวัติรายคน)</span>
+              <span>ตารางติดตามผลงานช่างแต่ละคน (คลิกเพื่อกรองดูประวัติรายคน)</span>
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              ตรวจสอบจำนวนงานที่ส่งมอบแล้ว งานค้างในมือ และเวลาที่ส่งงานล่าสุด เพื่อประเมินความขยันของช่างแต่ละคน
+              ตรวจสอบจำนวนงานที่ส่งมอบแล้ว งานที่กำลังดำเนินการ และเวลาที่ส่งมอบงานล่าสุด
             </p>
           </div>
           {selectedTechId !== 'all' && (
@@ -290,9 +313,7 @@ export const AdminHistory: React.FC = () => {
               return (
                 <div
                   key={tech.u_id}
-                  onClick={() =>
-                    setSelectedTechId(isSelected ? 'all' : String(tech.u_id))
-                  }
+                  onClick={() => setSelectedTechId(isSelected ? 'all' : String(tech.u_id))}
                   className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                     isSelected
                       ? 'bg-sky-950/40 border-sky-500 ring-1 ring-sky-500/30'
@@ -308,33 +329,31 @@ export const AdminHistory: React.FC = () => {
                         <p className="font-bold text-white text-xs sm:text-sm truncate">
                           ช่าง {tech.u_name} {tech.u_surname}
                         </p>
-                        <p className="text-[11px] text-slate-400 font-mono truncate">
-                          {tech.cel}
-                        </p>
+                        <p className="text-[11px] text-slate-400 font-mono truncate">{tech.cel}</p>
                       </div>
                     </div>
 
                     {tech.completedCount > 0 ? (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 shrink-0">
-                        ส่งงาน 7 วันนี้: {tech.weeklyCompletedCount} งาน
+                        7 วันนี้: {tech.weeklyCompletedCount} งาน
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800/60 flex items-center gap-1 shrink-0">
                         <AlertTriangle className="w-3 h-3" />
-                        <span>ยังไม่มีงานที่เสร็จ</span>
+                        <span>ยังไม่มีงานส่งมอบ</span>
                       </span>
                     )}
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800/80 text-center">
                     <div>
-                      <span className="text-[10px] text-slate-400 block">ซ่อมเสร็จ</span>
+                      <span className="text-[10px] text-slate-400 block">ส่งมอบแล้ว</span>
                       <span className="text-sm sm:text-base font-extrabold text-emerald-400">
                         {tech.completedCount}
                       </span>
                     </div>
                     <div className="border-x border-slate-800">
-                      <span className="text-[10px] text-slate-400 block">ค้างในมือ</span>
+                      <span className="text-[10px] text-slate-400 block">กำลังถืออยู่</span>
                       <span className="text-sm sm:text-base font-extrabold text-amber-400">
                         {tech.pendingCount}
                       </span>
@@ -350,12 +369,15 @@ export const AdminHistory: React.FC = () => {
                   <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
                     <span className="truncate">
                       {tech.lastCompletedAt
-                        ? `ส่งงานล่าสุด: ${new Date(tech.lastCompletedAt).toLocaleDateString('th-TH', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}`
+                        ? `ส่งงานล่าสุด: ${new Date(tech.lastCompletedAt).toLocaleDateString(
+                            'th-TH',
+                            {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }
+                          )}`
                         : 'ยังไม่เคยส่งมอบงาน'}
                     </span>
                     <span className="text-sky-400 font-semibold shrink-0 ml-2">
@@ -369,12 +391,9 @@ export const AdminHistory: React.FC = () => {
         )}
       </div>
 
-      {/* ======================================================== */}
       {/* 3. FILTER BAR FOR COMPLETED REPAIRS */}
-      {/* ======================================================== */}
       <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-          {/* Period Filter Buttons */}
           <div className="flex flex-wrap items-center gap-1.5">
             {(
               [
@@ -398,7 +417,6 @@ export const AdminHistory: React.FC = () => {
             ))}
           </div>
 
-          {/* Dropdowns & Search */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
             <select
               value={selectedTechId}
@@ -416,9 +434,7 @@ export const AdminHistory: React.FC = () => {
             <select
               value={selectedCategoryId}
               onChange={(e) =>
-                setSelectedCategoryId(
-                  e.target.value === 'all' ? 'all' : Number(e.target.value)
-                )
+                setSelectedCategoryId(e.target.value === 'all' ? 'all' : Number(e.target.value))
               }
               className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-sky-500"
             >
@@ -436,7 +452,7 @@ export const AdminHistory: React.FC = () => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="ค้นหาชื่อลูกค้า, เบอร์, บริการ..."
+                placeholder="ค้นหาชื่อลูกค้า, เบอร์โทร, บริการ..."
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
               />
             </div>
@@ -444,9 +460,7 @@ export const AdminHistory: React.FC = () => {
         </div>
       </div>
 
-      {/* ======================================================== */}
-      {/* 4. COMPLETED HISTORY LIST (Mobile Cards + Desktop Table) */}
-      {/* ======================================================== */}
+      {/* 4. COMPLETED HISTORY LIST */}
       <div className="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden">
         {loading ? (
           <div className="py-16 text-center text-xs text-slate-400">
@@ -454,11 +468,11 @@ export const AdminHistory: React.FC = () => {
           </div>
         ) : filteredHistory.length === 0 ? (
           <div className="py-16 text-center text-xs text-slate-500">
-            ไม่พบประวัติงานซ่อมที่เสร็จสมบูรณ์ตามเงื่อนไขที่เลือก
+            ไม่พบประวัติงานซ่อมที่ส่งมอบแล้วตามเงื่อนไขที่เลือก
           </div>
         ) : (
           <>
-            {/* Mobile View (< md): Compact Cards */}
+            {/* Mobile View */}
             <div className="md:hidden divide-y divide-slate-800">
               {filteredHistory.map((item) => {
                 const price = item.final_price ?? item.service_price ?? 0;
@@ -467,16 +481,14 @@ export const AdminHistory: React.FC = () => {
                   <div
                     key={item.cm_id}
                     onClick={() => setSelectedReceipt(item)}
-                    className="p-4 space-y-2.5 hover:bg-slate-800/40 active:bg-slate-800/60 transition-colors cursor-pointer"
+                    className="p-4 space-y-2.5 hover:bg-slate-800/40 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 font-mono text-[11px] font-bold text-slate-300">
                           #{item.cm_id}
                         </span>
-                        <span className="font-bold text-white text-sm">
-                          {item.cm_username}
-                        </span>
+                        <span className="font-bold text-white text-sm">{item.cm_username}</span>
                       </div>
                       <span className="font-mono font-extrabold text-sm text-emerald-400">
                         +฿{price.toLocaleString()}
@@ -484,7 +496,7 @@ export const AdminHistory: React.FC = () => {
                     </div>
 
                     <div className="text-xs text-slate-300 font-medium">
-                      {item.service_name || 'บริการซ่อมที่ดำเนินการแล้ว'}
+                      {item.service_name || 'บริการซ่อมมาตรฐาน'}
                     </div>
 
                     <p className="text-[11px] text-slate-400 line-clamp-1">
@@ -494,12 +506,10 @@ export const AdminHistory: React.FC = () => {
                     <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
                       <span className="text-sky-400 font-semibold flex items-center gap-1">
                         <Wrench className="w-3 h-3" />
-                        {item.technician_name
-                          ? `ช่าง ${item.technician_name}`
-                          : 'ไม่ระบุช่าง'}
+                        {item.technician_name ? `ช่าง ${item.technician_name}` : 'ไม่ระบุช่าง'}
                       </span>
                       <span>
-                        เสร็จเมื่อ:{' '}
+                        ส่งมอบ:{' '}
                         {new Date(doneDate).toLocaleString('th-TH', {
                           dateStyle: 'short',
                           timeStyle: 'short',
@@ -511,16 +521,16 @@ export const AdminHistory: React.FC = () => {
               })}
             </div>
 
-            {/* Desktop View (>= md): Clean Table */}
+            {/* Desktop View */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950/80 border-b border-slate-800 text-slate-400">
                   <tr>
                     <th className="py-3 px-4 font-semibold">รหัสใบงาน</th>
                     <th className="py-3 px-4 font-semibold">ลูกค้า</th>
-                    <th className="py-3 px-4 font-semibold">บริการที่ซ่อมเสร็จ</th>
+                    <th className="py-3 px-4 font-semibold">บริการที่ดำเนินการ</th>
                     <th className="py-3 px-4 font-semibold">ช่างผู้รับผิดชอบ</th>
-                    <th className="py-3 px-4 font-semibold">ยอดที่คิดเงินถาวร</th>
+                    <th className="py-3 px-4 font-semibold">ยอดค่าบริการสุทธิ</th>
                     <th className="py-3 px-4 font-semibold">เวลาที่ส่งมอบงาน</th>
                     <th className="py-3 px-4 font-semibold text-right">รายละเอียด</th>
                   </tr>
@@ -540,14 +550,12 @@ export const AdminHistory: React.FC = () => {
                         </td>
                         <td className="py-3.5 px-4">
                           <p className="font-bold text-white">{item.cm_username}</p>
-                          <p className="text-[11px] text-slate-400 font-mono">
-                            {item.cm_cel}
-                          </p>
+                          <p className="text-[11px] text-slate-400 font-mono">{item.cm_cel}</p>
                         </td>
                         <td className="py-3.5 px-4 max-w-xs">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-medium text-slate-200">
-                              {item.service_name || 'บริการซ่อมที่ดำเนินการแล้ว'}
+                              {item.service_name || 'บริการซ่อมมาตรฐาน'}
                             </span>
                             {item.category_name && (
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-950 text-sky-400 border border-sky-800/60">
@@ -576,7 +584,7 @@ export const AdminHistory: React.FC = () => {
                             ฿{price.toLocaleString()}
                           </span>
                           <span className="block text-[10px] text-emerald-500/80">
-                            คิดเงินถาวรแล้ว
+                            ส่งมอบงานแล้ว
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-slate-300 whitespace-nowrap">
@@ -607,20 +615,24 @@ export const AdminHistory: React.FC = () => {
         )}
       </div>
 
-      {/* ======================================================== */}
-      {/* 5. COMPLETED JOB RECEIPT / DETAIL MODAL */}
-      {/* ======================================================== */}
+      {/* 5. COMPLETED JOB RECEIPT MODAL (Click outside to close) */}
       {selectedReceipt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-xl p-5 sm:p-6 space-y-4 shadow-2xl animate-modal max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={() => setSelectedReceipt(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl p-5 sm:p-6 space-y-4 shadow-2xl animate-modal max-h-[90vh] overflow-y-auto"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-md text-xs font-mono font-bold bg-slate-950 border border-slate-800 text-slate-200">
-                  Ticket #{selectedReceipt.cm_id}
+                  ใบงาน #{selectedReceipt.cm_id}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800/60 flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>ส่งงาน & คิดเงินถาวรแล้ว</span>
+                  <span>ส่งมอบงานเรียบร้อยแล้ว</span>
                 </span>
               </div>
               <button
@@ -631,22 +643,25 @@ export const AdminHistory: React.FC = () => {
               </button>
             </div>
 
-            {/* Billed Price Highlight Box */}
             <div className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-800/50 flex items-center justify-between">
               <div>
                 <p className="text-[11px] text-emerald-300 font-bold uppercase">
-                  ยอดเงินที่บันทึกเข้าบัญชีถาวร (Final Price)
+                  ยอดค่าบริการสุทธิ
                 </p>
-                <p className="text-xs text-slate-300 mt-0.5">
+                <p className="text-xs text-slate-200 font-semibold mt-0.5">
                   {selectedReceipt.service_name || 'บริการซ่อมมาตรฐาน'}
                 </p>
               </div>
               <p className="text-2xl font-black text-emerald-400 font-mono">
-                ฿{(selectedReceipt.final_price ?? selectedReceipt.service_price ?? 0).toLocaleString()}
+                ฿
+                {(
+                  selectedReceipt.final_price ??
+                  selectedReceipt.service_price ??
+                  0
+                ).toLocaleString()}
               </p>
             </div>
 
-            {/* Customer & Technician Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
                 <p className="text-[10px] text-slate-400 font-bold uppercase">ข้อมูลลูกค้า</p>
@@ -667,20 +682,22 @@ export const AdminHistory: React.FC = () => {
                   <UserCheck className="w-4 h-4 text-sky-400" />
                   <span>
                     {selectedReceipt.technician_name
-                      ? `ช่าง ${selectedReceipt.technician_name} ${selectedReceipt.technician_surname || ''}`
+                      ? `ช่าง ${selectedReceipt.technician_name} ${
+                          selectedReceipt.technician_surname || ''
+                        }`
                       : 'ไม่ระบุช่าง'}
                   </span>
                 </p>
                 <p className="text-[11px] text-slate-400 flex items-center gap-1 pt-1">
                   <Clock className="w-3 h-3" />
                   <span>
-                    รับแจ้ง: {new Date(selectedReceipt.created_at).toLocaleString('th-TH')}
+                    รับเรื่อง: {new Date(selectedReceipt.created_at).toLocaleString('th-TH')}
                   </span>
                 </p>
                 <p className="text-[11px] text-emerald-400 flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
                   <span>
-                    ส่งงานเมื่อ:{' '}
+                    ส่งมอบเมื่อ:{' '}
                     {new Date(
                       selectedReceipt.completed_at || selectedReceipt.created_at
                     ).toLocaleString('th-TH')}
@@ -689,18 +706,17 @@ export const AdminHistory: React.FC = () => {
               </div>
             </div>
 
-            {/* Symptoms & Technician Note */}
-            <div className="space-y-2 text-xs">
+            <div className="space-y-2.5 text-xs">
               <div>
                 <p className="font-bold text-slate-300 mb-1">อาการเสียที่ลูกค้าแจ้ง:</p>
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200">
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 leading-relaxed whitespace-pre-wrap">
                   {selectedReceipt.cm_symptom}
                 </div>
               </div>
 
               <div>
                 <p className="font-bold text-slate-300 mb-1">บันทึกการซ่อมของช่าง:</p>
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300">
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 leading-relaxed whitespace-pre-wrap">
                   {selectedReceipt.comment || 'ไม่มีบันทึกเพิ่มเติม'}
                 </div>
               </div>
@@ -713,7 +729,7 @@ export const AdminHistory: React.FC = () => {
                   onClick={() =>
                     setLightboxImage({
                       src: selectedReceipt.cm_image!,
-                      alt: `Ticket #${selectedReceipt.cm_id}`,
+                      alt: `ใบงาน #${selectedReceipt.cm_id}`,
                     })
                   }
                   className="relative group cursor-zoom-in rounded-xl overflow-hidden border border-slate-800 max-h-44 bg-slate-950 flex items-center justify-center"
@@ -745,4 +761,3 @@ export const AdminHistory: React.FC = () => {
     </div>
   );
 };
-

@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { Request, Response } from 'express';
 import { db } from '../config/db';
 import { categories, inboxMessages, services, users } from '../db/schema';
@@ -7,7 +7,7 @@ import { categories, inboxMessages, services, users } from '../db/schema';
  * GET /api/dashboard
  * ดึงข้อมูลสถิติภาพรวมสำหรับหน้า Admin Dashboard
  * รองรับ Query: ?period=all | weekly | monthly
- * คำนวณรายรับจาก final_price และเวลาปิดงานจริง (completed_at) เพื่อป้องกันยอดย้อนหลังเพี้ยนเมื่อแก้ไขราคาหรือลบบริการ
+ * รันทุก Query แบบขนานด้วย Promise.all เพื่อความเร็วสูงสุดบน Serverless (Vercel + Neon)
  */
 export async function getDashboardStats(req: Request, res: Response): Promise<void> {
   try {
@@ -29,19 +29,121 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       startDate = thirtyDaysAgo;
     }
 
-    // 1. ดึงข้อมูลรายการที่ซ่อมเสร็จแล้ว (repair_status = 'completed')
-    // ใช้ leftJoin และดึง final_price เป็นหลัก เพื่อไม่ให้ยอดย้อนหลังหายหรือเพี้ยนแม้บริการจะถูกแก้ราคาหรือลบไปแล้ว
-    const completedItems = await db
-      .select({
-        cm_id: inboxMessages.cm_id,
-        price: sql<number>`coalesce(${inboxMessages.final_price}, ${services.price}, 0)::int`,
-        completed_at: inboxMessages.completed_at,
-        created_at: inboxMessages.created_at,
-        technician_id: inboxMessages.technician_id,
-      })
-      .from(inboxMessages)
-      .leftJoin(services, eq(inboxMessages.service_id, services.id))
-      .where(eq(inboxMessages.repair_status, 'completed'));
+    const categoryConditions = [eq(inboxMessages.repair_status, 'completed')];
+    if (startDate) {
+      categoryConditions.push(
+        sql`coalesce(${inboxMessages.completed_at}, ${inboxMessages.created_at}) >= ${startDate.toISOString()}`
+      );
+    }
+
+    const categoryNameExpr = sql<string>`coalesce(${categories.cg_name}, 'อื่นๆ / บริการที่ยกเลิก')`;
+
+    // รันทั้ง 6 Queries พร้อมกันในครั้งเดียว (Parallel Execution) เพื่อลด Latency บน Vercel
+    const [
+      completedItems,
+      activeItems,
+      techniciansCountResult,
+      categoryStats,
+      recentActivities,
+      techniciansList,
+      assignedJobs,
+    ] = await Promise.all([
+      // 1. รายการที่ซ่อมเสร็จแล้ว (repair_status = 'completed')
+      db
+        .select({
+          cm_id: inboxMessages.cm_id,
+          price: sql<number>`coalesce(${inboxMessages.final_price}, ${services.price}, 0)::int`,
+          completed_at: inboxMessages.completed_at,
+          created_at: inboxMessages.created_at,
+          technician_id: inboxMessages.technician_id,
+        })
+        .from(inboxMessages)
+        .leftJoin(services, eq(inboxMessages.service_id, services.id))
+        .where(eq(inboxMessages.repair_status, 'completed')),
+
+      // 2. รายการที่อยู่ในคิวซ่อม (ทั้ง pending และ in_progress)
+      db
+        .select({
+          cm_id: inboxMessages.cm_id,
+          created_at: inboxMessages.created_at,
+          technician_id: inboxMessages.technician_id,
+          repair_status: inboxMessages.repair_status,
+        })
+        .from(inboxMessages)
+        .where(ne(inboxMessages.repair_status, 'completed')),
+
+      // 3. จำนวนช่าง (Role = 'technician')
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(users)
+        .where(eq(users.role, 'technician')),
+
+      // 4. ข้อมูลจำแนกตามหมวดหมู่สินค้า
+      db
+        .select({
+          category_name: categoryNameExpr,
+          count: sql<number>`count(${inboxMessages.cm_id})::int`,
+          revenue: sql<number>`coalesce(sum(coalesce(${inboxMessages.final_price}, ${services.price}, 0)), 0)::int`,
+        })
+        .from(inboxMessages)
+        .leftJoin(services, eq(inboxMessages.service_id, services.id))
+        .leftJoin(categories, eq(services.cg_id, categories.cg_id))
+        .where(and(...categoryConditions))
+        .groupBy(categories.cg_name),
+
+      // 5. รายการล่าสุด 6 รายการสำหรับแสดงในตาราง Recent Activities พร้อมชื่อช่าง
+      db
+        .select({
+          cm_id: inboxMessages.cm_id,
+          cm_username: inboxMessages.cm_username,
+          service_name: sql<string>`coalesce(${services.name}, 'ปรึกษาช่าง / ประเมินภายหลัง')`,
+          price: sql<number>`coalesce(${inboxMessages.final_price}, ${services.price}, 0)::int`,
+          repair_status: inboxMessages.repair_status,
+          technician_name: users.u_name,
+          technician_surname: users.u_surname,
+          created_at: inboxMessages.created_at,
+          completed_at: inboxMessages.completed_at,
+        })
+        .from(inboxMessages)
+        .leftJoin(services, eq(inboxMessages.service_id, services.id))
+        .leftJoin(users, eq(inboxMessages.technician_id, users.u_id))
+        .orderBy(desc(inboxMessages.created_at))
+        .limit(6),
+
+      // 6. รายชื่อช่างทั้งหมด
+      db
+        .select({
+          u_id: users.u_id,
+          u_name: users.u_name,
+          u_surname: users.u_surname,
+          username: users.username,
+          cel: users.cel,
+          email: users.email,
+        })
+        .from(users)
+        .where(eq(users.role, 'technician'))
+        .orderBy(users.u_name),
+
+      // 7. งานทั้งหมดที่ผูกกับช่าง
+      db
+        .select({
+          cm_id: inboxMessages.cm_id,
+          technician_id: inboxMessages.technician_id,
+          cm_username: inboxMessages.cm_username,
+          cm_cel: inboxMessages.cm_cel,
+          cm_symptom: inboxMessages.cm_symptom,
+          service_id: inboxMessages.service_id,
+          service_name: services.name,
+          service_price: sql<number>`coalesce(${inboxMessages.final_price}, ${services.price}, 0)::int`,
+          repair_status: inboxMessages.repair_status,
+          created_at: inboxMessages.created_at,
+          completed_at: inboxMessages.completed_at,
+        })
+        .from(inboxMessages)
+        .leftJoin(services, eq(inboxMessages.service_id, services.id))
+        .where(sql`${inboxMessages.technician_id} IS NOT NULL`)
+        .orderBy(desc(inboxMessages.created_at)),
+    ]);
 
     let totalRevenue = 0;
     let weeklyRevenue = 0;
@@ -53,7 +155,6 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       const price = item.price || 0;
       totalRevenue += price;
 
-      // ใช้วันเวลาที่ปิดงานจริง (completed_at) เป็นหลัก หากไม่มีให้ fallback ไปที่ created_at
       const itemDate = new Date(item.completed_at || item.created_at);
       if (itemDate >= sevenDaysAgo) {
         weeklyRevenue += price;
@@ -68,109 +169,19 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
       }
     }
 
-    // 2. ดึงข้อมูลสินค้าที่รอซ่อม (Inbox ที่ repair_status = 'pending')
-    const pendingItems = await db
-      .select({
-        cm_id: inboxMessages.cm_id,
-        created_at: inboxMessages.created_at,
-        technician_id: inboxMessages.technician_id,
-      })
-      .from(inboxMessages)
-      .where(eq(inboxMessages.repair_status, 'pending'));
-
     let periodPendingCount = 0;
-    for (const item of pendingItems) {
+    for (const item of activeItems) {
       const itemDate = new Date(item.created_at);
       if (!startDate || itemDate >= startDate) {
         periodPendingCount++;
       }
     }
 
-    // 3. จำนวนช่าง (Role = 'technician')
-    const [techniciansCountResult] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(users)
-      .where(eq(users.role, 'technician'));
-    const techniciansCount = techniciansCountResult?.count || 0;
-
-    // 4. ข้อมูลจำแนกตามหมวดหมู่สินค้า (คำนวณตามช่วงเวลาที่เลือก โดยใช้ final_price และ completed_at)
-    const categoryConditions = [eq(inboxMessages.repair_status, 'completed')];
-    if (startDate) {
-      categoryConditions.push(
-        sql`coalesce(${inboxMessages.completed_at}, ${inboxMessages.created_at}) >= ${startDate.toISOString()}`
-      );
-    }
-
-    const categoryNameExpr = sql<string>`coalesce(${categories.cg_name}, 'อื่นๆ / บริการที่ยกเลิก')`;
-
-    const categoryStats = await db
-      .select({
-        category_name: categoryNameExpr,
-        count: sql<number>`count(${inboxMessages.cm_id})::int`,
-        revenue: sql<number>`coalesce(sum(coalesce(${inboxMessages.final_price}, ${services.price}, 0)), 0)::int`,
-      })
-      .from(inboxMessages)
-      .leftJoin(services, eq(inboxMessages.service_id, services.id))
-      .leftJoin(categories, eq(services.cg_id, categories.cg_id))
-      .where(and(...categoryConditions))
-      .groupBy(categories.cg_name);
-
-    // 5. รายการล่าสุด 6 รายการสำหรับแสดงในตาราง Recent Activities พร้อมชื่อช่าง
-    const recentActivities = await db
-      .select({
-        cm_id: inboxMessages.cm_id,
-        cm_username: inboxMessages.cm_username,
-        service_name: sql<string>`coalesce(${services.name}, 'ปรึกษาช่าง / ประเมินภายหลัง')`,
-        price: sql<number>`coalesce(${inboxMessages.final_price}, ${services.price}, 0)::int`,
-        repair_status: inboxMessages.repair_status,
-        technician_name: users.u_name,
-        technician_surname: users.u_surname,
-        created_at: inboxMessages.created_at,
-        completed_at: inboxMessages.completed_at,
-      })
-      .from(inboxMessages)
-      .leftJoin(services, eq(inboxMessages.service_id, services.id))
-      .leftJoin(users, eq(inboxMessages.technician_id, users.u_id))
-      .orderBy(desc(inboxMessages.created_at))
-      .limit(6);
-
-    // 6. สถิติและประวัติการซ่อมของช่างแต่ละคน
-    const techniciansList = await db
-      .select({
-        u_id: users.u_id,
-        u_name: users.u_name,
-        u_surname: users.u_surname,
-        username: users.username,
-        cel: users.cel,
-        email: users.email,
-      })
-      .from(users)
-      .where(eq(users.role, 'technician'))
-      .orderBy(users.u_name);
-
-    // ดึงงานทั้งหมดที่ผูกกับช่าง เพื่อนำมาสรุปสถิติและประวัติ (ใช้ final_price เป็นหลัก)
-    const assignedJobs = await db
-      .select({
-        cm_id: inboxMessages.cm_id,
-        technician_id: inboxMessages.technician_id,
-        cm_username: inboxMessages.cm_username,
-        cm_cel: inboxMessages.cm_cel,
-        cm_symptom: inboxMessages.cm_symptom,
-        service_id: inboxMessages.service_id,
-        service_name: services.name,
-        service_price: sql<number>`coalesce(${inboxMessages.final_price}, ${services.price}, 0)::int`,
-        repair_status: inboxMessages.repair_status,
-        created_at: inboxMessages.created_at,
-        completed_at: inboxMessages.completed_at,
-      })
-      .from(inboxMessages)
-      .leftJoin(services, eq(inboxMessages.service_id, services.id))
-      .where(sql`${inboxMessages.technician_id} IS NOT NULL`)
-      .orderBy(desc(inboxMessages.created_at));
+    const techniciansCount = techniciansCountResult[0]?.count || 0;
 
     const technicianPerformance = techniciansList.map((tech) => {
       const techJobs = assignedJobs.filter((j) => j.technician_id === tech.u_id);
-      const pendingJobs = techJobs.filter((j) => j.repair_status === 'pending');
+      const pendingJobs = techJobs.filter((j) => j.repair_status !== 'completed');
       const completedJobs = techJobs.filter((j) => j.repair_status === 'completed');
       const totalRevenue = completedJobs.reduce((sum, j) => sum + (j.service_price || 0), 0);
 
@@ -196,7 +207,7 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
           periodCompletedCount,
           periodPendingCount,
           completedRepairsCount: completedItems.length,
-          pendingRepairsCount: pendingItems.length,
+          pendingRepairsCount: activeItems.length,
           techniciansCount,
         },
         categoryStats,

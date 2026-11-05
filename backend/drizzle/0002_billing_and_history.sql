@@ -8,3 +8,4 @@ CREATE INDEX IF NOT EXISTS "idx_inbox_technician_id" ON "inbox_messages" USING b
 CREATE INDEX IF NOT EXISTS "idx_inbox_repair_status" ON "inbox_messages" USING btree ("repair_status");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_inbox_is_read" ON "inbox_messages" USING btree ("is_read");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_inbox_created_at" ON "inbox_messages" USING btree ("created_at");
+

@@ -1,67 +1,101 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
 @import "tailwindcss";
 
 @layer base {
-  :root {
-    --font-sans: 'Prompt', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  }
-
-  body {
-    margin: 0;
-    font-family: var(--font-sans);
+  html {
+    scroll-behavior: smooth;
+    font-family: 'Anuphan', 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, sans-serif;
     background-color: #f8fafc;
-    color: #1e293b;
+    color: #0f172a;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Custom subtle scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  h1, h2, h3, h4, .font-heading {
+    font-family: 'Plus Jakarta Sans', 'Anuphan', sans-serif;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
   }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 9999px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+
+  p, li, dd, blockquote, .text-pretty-thai {
+    text-wrap: pretty;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    line-break: strict;
   }
 }
 
-/* Animations for modal, lightbox, and drawer */
-@keyframes modalFadeIn {
-  from {
+/* Custom Subtle Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Smooth Modal & Backdrop Transitions */
+@keyframes modalPop {
+  0% {
     opacity: 0;
-    transform: scale(0.97) translateY(8px);
+    transform: scale(0.97) translateY(6px);
   }
-  to {
+  100% {
     opacity: 1;
     transform: scale(1) translateY(0);
   }
 }
 
-@keyframes backdropFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
-@keyframes pulseSubtle {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.85; transform: scale(1.03); }
+@keyframes toastSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes refreshPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.35);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(14, 165, 233, 0);
+  }
 }
 
 .animate-modal {
-  animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: modalPop 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-backdrop {
-  animation: backdropFade 0.2s ease-out forwards;
+  animation: fadeIn 0.15s ease-out forwards;
 }
 
-.animate-pulse-subtle {
-  animation: pulseSubtle 3s infinite ease-in-out;
+.animate-fade {
+  animation: toastSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-refresh-flash {
+  animation: refreshPulse 0.65s ease-out;
 }

@@ -4,17 +4,38 @@ import { db } from '../config/db';
 import { categories, services } from '../db/schema';
 import { CreateServiceInput, UpdateServiceInput } from '../validators/service.schema';
 
+const servicesCache = new Map<string, { data: any[]; expiresAt: number }>();
+const CACHE_TTL_MS = 25_000;
+
+export function clearServicesCache(): void {
+  servicesCache.clear();
+}
+
 /**
  * GET /api/services
- * ดึงรายการบริการทั้งหมด พร้อมข้อมูลหมวดหมู่
- * รองรับ Query: ?cg_id=1&status=true
+ * ดึงรายการบริการทั้งหมด พร้อมข้อมูลหมวดหมู่ และ In-memory Cache เพื่อลดเวลาโหลดบน Vercel
+ * รองรับ Query: ?cg_id=1&status=true&fresh=1
  */
 export async function getAllServices(req: Request, res: Response): Promise<void> {
   try {
     const cgIdQuery = req.query.cg_id ? parseInt(req.query.cg_id as string, 10) : undefined;
     const statusQuery = req.query.status !== undefined ? req.query.status === 'true' : undefined;
+    const forceFresh = req.query.fresh === '1' || req.query.fresh === 'true';
 
-    // Build conditions
+    const cacheKey = `${cgIdQuery ?? 'all'}_${statusQuery ?? 'all'}`;
+    const now = Date.now();
+
+    if (!forceFresh) {
+      const cached = servicesCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        res.json({
+          success: true,
+          data: cached.data,
+        });
+        return;
+      }
+    }
+
     const conditions = [];
     if (cgIdQuery && !isNaN(cgIdQuery)) {
       conditions.push(eq(services.cg_id, cgIdQuery));
@@ -41,6 +62,11 @@ export async function getAllServices(req: Request, res: Response): Promise<void>
     const result = conditions.length > 0
       ? await query.where(and(...conditions))
       : await query;
+
+    servicesCache.set(cacheKey, {
+      data: result,
+      expiresAt: now + CACHE_TTL_MS,
+    });
 
     res.json({
       success: true,
@@ -103,7 +129,6 @@ export async function createService(req: Request, res: Response): Promise<void> 
   try {
     const input: CreateServiceInput = req.body;
 
-    // ตรวจสอบว่ามีหมวดหมู่อยู่จริงหรือไม่
     const [category] = await db
       .select()
       .from(categories)
@@ -130,6 +155,8 @@ export async function createService(req: Request, res: Response): Promise<void> 
       })
       .returning();
 
+    clearServicesCache();
+
     res.status(201).json({
       success: true,
       message: 'เพิ่มรายการบริการสำเร็จ',
@@ -155,7 +182,6 @@ export async function updateService(req: Request, res: Response): Promise<void> 
 
     const input: UpdateServiceInput = req.body;
 
-    // ตรวจสอบว่าบริการมีอยู่จริงหรือไม่
     const [existing] = await db
       .select()
       .from(services)
@@ -167,7 +193,6 @@ export async function updateService(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // ถ้ามีการเปลี่ยนหมวดหมู่ ให้เช็คว่าหมวดหมู่ใหม่มีอยู่จริงหรือไม่
     if (input.cg_id) {
       const [category] = await db
         .select()
@@ -186,6 +211,8 @@ export async function updateService(req: Request, res: Response): Promise<void> 
       .set(input)
       .where(eq(services.id, id))
       .returning();
+
+    clearServicesCache();
 
     res.json({
       success: true,
@@ -219,6 +246,8 @@ export async function deleteService(req: Request, res: Response): Promise<void> 
       res.status(404).json({ success: false, message: 'ไม่พบรายการบริการที่ต้องการลบ' });
       return;
     }
+
+    clearServicesCache();
 
     res.json({
       success: true,

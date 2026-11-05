@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, Eye, EyeOff, ArrowRight, AlertCircle, Cpu } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useService } from '../../context/ServiceContext';
 
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -11,12 +12,12 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const { user, login } = useAuth();
+  const { showToast } = useService();
   const navigate = useNavigate();
 
-  // หากล็อกอินอยู่แล้ว ให้พาไปหน้า Admin ทันทีตาม Requirement
   useEffect(() => {
     if (user) {
-      navigate('/admin', { replace: true });
+      navigate(user.role === 'admin' ? '/admin/dashboard' : '/admin/inbox', { replace: true });
     }
   }, [user, navigate]);
 
@@ -25,17 +26,17 @@ export const LoginPage: React.FC = () => {
     setError('');
 
     if (!username.trim() || !password) {
-      setError('กรุณากรอก Username และรหัสผ่าน');
+      setError('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
       return;
     }
 
     setLoading(true);
     try {
       await login(username.trim(), password);
-      // สำเร็จ พาไปหน้า Admin
+      showToast('เข้าสู่ระบบสำเร็จ');
       navigate('/admin', { replace: true });
     } catch (err: any) {
-      setError(err.message || 'Username หรือรหัสผ่านไม่ถูกต้อง');
+      setError(err.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
     } finally {
       setLoading(false);
     }
@@ -44,60 +45,32 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="min-h-[82vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#f8fafc]">
       <div className="w-full max-w-md space-y-6">
-        
-        {/* Header Icon & Brand */}
-        {/* [จุดเปลี่ยนรูปภาพ LOGO ในหน้า Login]: หากต้องการใช้รูปภาพแทนไอคอน CPU ด้านล่าง 
-            สามารถแทนที่แท็ก <div className="w-12 h-12..."> ด้วย:
-            <img src="/logo.png" alt="Fix Please Logo" className="w-12 h-12 object-contain mx-auto" /> */}
-        <div className="text-center space-y-2.5">
-          <div className="w-12 h-12 rounded-2xl bg-sky-600 flex items-center justify-center mx-auto shadow-sm shadow-sky-600/20">
-            <Cpu className="w-6 h-6 text-white stroke-[2.2]" />
+        <div className="text-center space-y-2">
+          <div className="w-11 h-11 rounded-xl bg-slate-900 flex items-center justify-center mx-auto">
+            <Cpu className="w-5 h-5 text-white stroke-[2.2]" />
           </div>
           <div>
-            <div className="flex items-center justify-center gap-1.5 mb-1">
-              <span className="text-xl font-bold tracking-tight text-slate-900 font-['Plus_Jakarta_Sans']">
-                Fix<span className="text-sky-600">Please</span>
-              </span>
-            </div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-              เข้าสู่ระบบหลังบ้าน
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+              เข้าสู่ระบบสำหรับเจ้าหน้าที่
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5 font-normal">
-              เฉพาะเจ้าหน้าที่ผู้ดูแลระบบ (Admin) และช่างประจำศูนย์เท่านั้น
+            <p className="text-xs text-slate-500 mt-1 text-pretty">
+              <span className="inline-block">ระบบจัดการคิวงานซ่อมและข้อมูลบริการ</span>{' '}
+              <span className="inline-block">สำหรับผู้ดูแลระบบและช่างประจำศูนย์</span>
             </p>
           </div>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-white rounded-3xl p-7 sm:p-8 border border-slate-200/90 shadow-sm space-y-5">
-          
-          {/* Default Account Hint (ตรงตาม Requirement: Admin 1234)
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 space-y-1.5">
-            <div className="flex items-center gap-1.5 font-bold text-slate-900">
-              <ShieldCheck className="w-4 h-4 text-sky-600" />
-              <span>บัญชีเริ่มต้นสำหรับการทดสอบระบบ:</span>
-            </div>
-            <div className="flex items-center justify-between font-mono text-[11px] bg-white px-3 py-1 rounded-xl border border-slate-200">
-              <span>Username: <strong>Admin</strong></span>
-              <span>Password: <strong>1234</strong></span>
-            </div>
-          </div> */}
-
-          {/* Error Banner */}
+        <div className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200 shadow-2xs space-y-5">
           {error && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-            
-            {/* Username Field */}
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">
-                Username (ชื่อผู้ใช้)
-              </label>
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-700 block">ชื่อผู้ใช้งาน (Username)</label>
               <div className="relative">
                 <User className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
@@ -106,17 +79,14 @@ export const LoginPage: React.FC = () => {
                   autoFocus
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="กรอกชื่อผู้ใช้ เช่น Admin"
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                  placeholder="กรอกชื่อผู้ใช้งาน"
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors"
                 />
               </div>
             </div>
 
-            {/* Password Field */}
-            <div className="space-y-1">
-              <label className="font-bold text-slate-700">
-                Password (รหัสผ่าน)
-              </label>
+            <div className="space-y-1.5">
+              <label className="font-bold text-slate-700 block">รหัสผ่าน (Password)</label>
               <div className="relative">
                 <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
@@ -125,7 +95,7 @@ export const LoginPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="กรอกรหัสผ่าน"
-                  className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+                  className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors"
                 />
                 <button
                   type="button"
@@ -137,34 +107,24 @@ export const LoginPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Submit Button */}
-            <div className="pt-2">
+            <div className="pt-1">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {loading ? (
-                  <span>กำลังตรวจสอบสิทธิ์...</span>
+                  <span>กำลังตรวจสอบข้อมูล...</span>
                 ) : (
                   <>
-                    <span>เข้าสู่ระบบ (Sign In)</span>
+                    <span>เข้าสู่ระบบ</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </>
                 )}
               </button>
             </div>
-
           </form>
-
-          <div className="text-center pt-1 border-t border-slate-100">
-            <p className="text-[11px] text-slate-400 font-normal">
-              เข้าสู่ระบบผ่านการยืนยันตัวตนด้วย Secure HttpOnly Cookie
-            </p>
-          </div>
-
         </div>
-
       </div>
     </div>
   );

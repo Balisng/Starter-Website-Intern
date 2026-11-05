@@ -3,16 +3,39 @@ import { Request, Response } from 'express';
 import { db } from '../config/db';
 import { categories } from '../db/schema';
 
+let categoriesCache: { data: any[]; expiresAt: number } | null = null;
+const CACHE_TTL_MS = 30_000;
+
+export function clearCategoriesCache(): void {
+  categoriesCache = null;
+}
+
 /**
  * GET /api/categories
- * ดึงรายการหมวดหมู่ทั้งหมด (Computer, Laptop, Phone)
+ * ดึงรายการหมวดหมู่ทั้งหมด (Computer, Laptop, Phone) พร้อม In-memory Cache เพื่อลด Latency บน Vercel
  */
-export async function getAllCategories(_req: Request, res: Response): Promise<void> {
+export async function getAllCategories(req: Request, res: Response): Promise<void> {
   try {
+    const forceFresh = req.query.fresh === '1' || req.query.fresh === 'true';
+    const now = Date.now();
+
+    if (!forceFresh && categoriesCache && categoriesCache.expiresAt > now) {
+      res.json({
+        success: true,
+        data: categoriesCache.data,
+      });
+      return;
+    }
+
     const list = await db
       .select()
       .from(categories)
       .orderBy(asc(categories.cg_id));
+
+    categoriesCache = {
+      data: list,
+      expiresAt: now + CACHE_TTL_MS,
+    };
 
     res.json({
       success: true,
@@ -73,6 +96,8 @@ export async function createCategory(req: Request, res: Response): Promise<void>
       .insert(categories)
       .values({ cg_name: cg_name.trim() })
       .returning();
+
+    clearCategoriesCache();
 
     res.status(201).json({
       success: true,

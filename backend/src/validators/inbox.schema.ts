@@ -39,8 +39,10 @@ export const updateInboxStatusSchema = z.object({
   service_id: z.number().int().optional().nullable(),
   technician_id: z.number().int('รหัสช่างต้องเป็นจำนวนเต็ม').optional().nullable(),
   repair_status: z
-    .enum(['pending', 'completed'], {
-      errorMap: () => ({ message: "สถานะการซ่อมต้องเป็น 'pending' หรือ 'completed'" }),
+    .enum(['pending', 'in_progress', 'completed'], {
+      errorMap: () => ({
+        message: "สถานะการซ่อมต้องเป็น 'pending', 'in_progress' หรือ 'completed'",
+      }),
     })
     .optional(),
   comment: z.string().max(500, 'ความคิดเห็นยาวเกิน 500 ตัวอักษร').optional().nullable(),

@@ -11,15 +11,20 @@ import {
   AlertCircle,
   PhoneCall,
   Mail,
+  RefreshCw,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { useService } from '../../context/ServiceContext';
 import type { User as UserType } from '../../types';
 
 export const AdminUsers: React.FC = () => {
   const { user: currentUser } = useAuth();
+  const { showToast } = useService();
   const [usersList, setUsersList] = useState<UserType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [flashKey, setFlashKey] = useState<number>(0);
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'technician'>('all');
   const [search, setSearch] = useState<string>('');
 
@@ -44,22 +49,34 @@ export const AdminUsers: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<UserType | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
 
-  const fetchUsers = async () => {
-    setLoading(true);
+  const fetchUsers = async (isManualRefresh: boolean = false) => {
+    if (isManualRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     try {
       const res = await apiRequest<UserType[]>('/users');
       if (res.success && res.data) {
         setUsersList(res.data);
       }
+      if (isManualRefresh) {
+        setFlashKey((prev) => prev + 1);
+        showToast('รีเฟรชรายชื่อผู้ใช้งานล่าสุดเรียบร้อยแล้ว');
+      }
     } catch (err) {
       console.error('Error fetching users:', err);
+      if (isManualRefresh) {
+        showToast('ไม่สามารถรีเฟรชข้อมูลได้', 'error');
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(false);
   }, []);
 
   const openAddModal = () => {
@@ -114,15 +131,15 @@ export const AdminUsers: React.FC = () => {
 
     if (!editingUser) {
       if (!form.username.trim() || form.username.trim().length < 3) {
-        setFormError('Username ต้องมีอย่างน้อย 3 ตัวอักษร');
+        setFormError('ชื่อผู้ใช้ (Username) ต้องมีอย่างน้อย 3 ตัวอักษร');
         return;
       }
       if (!form.pwd || form.pwd.length < 4) {
-        setFormError('Password ต้องมีอย่างน้อย 4 ตัวอักษร');
+        setFormError('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร');
         return;
       }
     } else if (form.pwd && form.pwd.length < 4) {
-      setFormError('Password ใหม่ต้องมีอย่างน้อย 4 ตัวอักษร');
+      setFormError('รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร');
       return;
     }
 
@@ -170,7 +187,8 @@ export const AdminUsers: React.FC = () => {
 
         if (res.success) {
           setModalOpen(false);
-          fetchUsers();
+          showToast(`อัปเดตข้อมูลผู้ใช้งาน "${form.u_name.trim()}" เรียบร้อยแล้ว`);
+          fetchUsers(false);
         } else {
           setFormError(res.message || 'แก้ไขข้อมูลผู้ใช้ไม่สำเร็จ');
         }
@@ -190,13 +208,15 @@ export const AdminUsers: React.FC = () => {
 
         if (res.success) {
           setModalOpen(false);
-          fetchUsers();
+          showToast(`เพิ่มผู้ใช้งาน "${form.u_name.trim()}" เรียบร้อยแล้ว`);
+          fetchUsers(false);
         } else {
           setFormError(res.message || 'เพิ่มผู้ใช้ไม่สำเร็จ');
         }
       }
     } catch (err: any) {
       setFormError(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      showToast(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
     } finally {
       setFormSubmitting(false);
     }
@@ -206,7 +226,7 @@ export const AdminUsers: React.FC = () => {
     if (!deleteTarget) return;
 
     if (deleteTarget.u_id === currentUser?.u_id) {
-      alert('ไม่สามารถลบบัญชีตนเองขณะกำลังเข้าสู่ระบบอยู่ได้');
+      showToast('ไม่สามารถลบบัญชีตนเองขณะกำลังเข้าสู่ระบบอยู่ได้', 'error');
       return;
     }
 
@@ -216,11 +236,12 @@ export const AdminUsers: React.FC = () => {
         method: 'DELETE',
       });
       if (res.success) {
+        showToast(`ลบผู้ใช้งาน "${deleteTarget.u_name} ${deleteTarget.u_surname}" เรียบร้อยแล้ว`);
         setDeleteTarget(null);
-        fetchUsers();
+        fetchUsers(false);
       }
     } catch (err: any) {
-      alert(err.message || 'ไม่สามารถลบผู้ใช้งานได้');
+      showToast(err.message || 'ไม่สามารถลบผู้ใช้งานได้', 'error');
     } finally {
       setDeleting(false);
     }
@@ -238,43 +259,51 @@ export const AdminUsers: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-xl bg-sky-950/70 border border-sky-800/60 text-sky-400">
+            <span className="p-1.5 rounded-xl bg-sky-950 border border-sky-800/60 text-sky-400">
               <Users className="w-4 h-4" />
             </span>
-            <h1 className="text-lg sm:text-xl font-black text-white tracking-tight">
-              จัดการผู้ใช้งานและสิทธิ์ (User Management)
+            <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+              จัดการผู้ใช้งานและสิทธิ์การเข้าถึง
             </h1>
           </div>
-          <p className="text-xs text-slate-400 mt-1 font-normal">
-            เพิ่ม แก้ไข ลบผู้ใช้งาน และกำหนดสิทธิ์ระหว่างช่าง (Technician) และผู้ดูแลระบบ (Admin)
+          <p className="text-xs text-slate-400 mt-1">
+            เพิ่ม แก้ไข ลบผู้ใช้งาน และกำหนดสิทธิ์ระหว่างช่างเทคนิคและผู้ดูแลระบบ
           </p>
         </div>
 
-        <button
-          onClick={openAddModal}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer w-full sm:w-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>เพิ่มผู้ใช้งานใหม่ (Add User)</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchUsers(true)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-sky-400' : ''}`} />
+            <span>{refreshing ? 'กำลังรีเฟรช...' : 'รีเฟรช'}</span>
+          </button>
+
+          <button
+            onClick={openAddModal}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>เพิ่มผู้ใช้งานใหม่</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        
-        {/* Role Filter Tabs */}
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => setRoleFilter('all')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
               roleFilter === 'all'
-                ? 'bg-sky-600 text-white shadow-xs font-bold'
-                : 'bg-slate-950/60 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-sky-600 text-white font-bold'
+                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
             }`}
           >
             ทั้งหมด ({usersList.length})
@@ -283,48 +312,55 @@ export const AdminUsers: React.FC = () => {
             onClick={() => setRoleFilter('admin')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
               roleFilter === 'admin'
-                ? 'bg-indigo-600 text-white shadow-xs font-bold'
-                : 'bg-slate-950/60 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-indigo-600 text-white font-bold'
+                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
             }`}
           >
-            ผู้ดูแลระบบ (Admin)
+            ผู้ดูแลระบบ
           </button>
           <button
             onClick={() => setRoleFilter('technician')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
               roleFilter === 'technician'
-                ? 'bg-sky-600 text-white shadow-xs font-bold'
-                : 'bg-slate-950/60 text-slate-400 hover:text-white border border-slate-800'
+                ? 'bg-sky-600 text-white font-bold'
+                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
             }`}
           >
-            ช่างประจำศูนย์ (Technician)
+            ช่างเทคนิคประจำศูนย์
           </button>
         </div>
 
-        {/* Search Input */}
         <div className="relative w-full sm:w-64">
           <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ค้นหาชื่อ, username, email..."
-            className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+            placeholder="ค้นหาชื่อ, username, อีเมล..."
+            className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
           />
         </div>
-
       </div>
 
       {/* Users List */}
-      <div className="rounded-2xl bg-slate-900 border border-slate-800 shadow-xs overflow-hidden">
+      <div
+        key={flashKey}
+        className={`rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden ${
+          flashKey > 0 ? 'animate-refresh-flash' : ''
+        }`}
+      >
         {loading ? (
-          <div className="py-16 text-center text-xs text-slate-500">กำลังโหลดรายชื่อผู้ใช้งาน...</div>
+          <div className="py-16 text-center text-xs text-slate-500">
+            กำลังโหลดรายชื่อผู้ใช้งาน...
+          </div>
         ) : filteredUsers.length === 0 ? (
-          <div className="py-16 text-center text-xs text-slate-500 font-normal">ไม่พบผู้ใช้งานตามเงื่อนไข</div>
+          <div className="py-16 text-center text-xs text-slate-500">
+            ไม่พบผู้ใช้งานตามเงื่อนไขที่เลือก
+          </div>
         ) : (
           <>
-            {/* Mobile Card View (md:hidden) */}
-            <div className="md:hidden divide-y divide-slate-800/80">
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-slate-800">
               {filteredUsers.map((u) => {
                 const isCurrent = u.u_id === currentUser?.u_id;
                 return (
@@ -337,8 +373,8 @@ export const AdminUsers: React.FC = () => {
                             {u.u_name} {u.u_surname}
                           </p>
                           {isCurrent && (
-                            <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/50">
-                              (คุณ)
+                            <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-800/50">
+                              คุณ
                             </span>
                           )}
                         </div>
@@ -346,12 +382,12 @@ export const AdminUsers: React.FC = () => {
                       </div>
 
                       {u.role === 'admin' ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-950/70 text-indigo-300 border border-indigo-800/60">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-800/60">
                           <Shield className="w-3 h-3 text-indigo-400" />
-                          <span>Admin</span>
+                          <span>ผู้ดูแลระบบ</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-950/70 text-sky-300 border border-sky-800/60">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-950 text-sky-300 border border-sky-800/60">
                           <UserCheck className="w-3 h-3 text-sky-400" />
                           <span>ช่างเทคนิค</span>
                         </span>
@@ -380,13 +416,14 @@ export const AdminUsers: React.FC = () => {
                       <button
                         disabled={isCurrent}
                         onClick={() => setDeleteTarget(u)}
-                        className={`p-1.5 rounded-xl transition-colors ${
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors ${
                           isCurrent
-                            ? 'bg-slate-900 text-slate-600 cursor-not-allowed'
-                            : 'bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 cursor-pointer'
+                            ? 'bg-slate-900 text-slate-600 cursor-not-allowed border border-slate-800'
+                            : 'bg-red-600 hover:bg-red-500 text-white cursor-pointer'
                         }`}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>ลบ</span>
                       </button>
                     </div>
                   </div>
@@ -394,15 +431,15 @@ export const AdminUsers: React.FC = () => {
               })}
             </div>
 
-            {/* Desktop Table View (hidden md:block) */}
+            {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950/80 border-b border-slate-800 text-slate-400">
                   <tr>
                     <th className="py-3 px-4 font-semibold w-16">รหัส</th>
                     <th className="py-3 px-4 font-semibold">ชื่อ-นามสกุล</th>
-                    <th className="py-3 px-4 font-semibold">Username</th>
-                    <th className="py-3 px-4 font-semibold">สิทธิ์การเข้าถึง (Role)</th>
+                    <th className="py-3 px-4 font-semibold">ชื่อผู้ใช้ (Username)</th>
+                    <th className="py-3 px-4 font-semibold">สิทธิ์การใช้งาน</th>
                     <th className="py-3 px-4 font-semibold">เบอร์โทรศัพท์</th>
                     <th className="py-3 px-4 font-semibold">อีเมล</th>
                     <th className="py-3 px-4 font-semibold text-right">การจัดการ</th>
@@ -413,15 +450,16 @@ export const AdminUsers: React.FC = () => {
                     const isCurrent = u.u_id === currentUser?.u_id;
                     return (
                       <tr key={u.u_id} className="hover:bg-slate-800/40 transition-colors">
-                        
                         <td className="py-3 px-4 font-mono font-bold text-slate-500">#{u.u_id}</td>
 
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
-                            <p className="font-bold text-slate-100 text-sm">{u.u_name} {u.u_surname}</p>
+                            <p className="font-bold text-slate-100 text-sm">
+                              {u.u_name} {u.u_surname}
+                            </p>
                             {isCurrent && (
-                              <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/50">
-                                (คุณ)
+                              <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-800/50">
+                                คุณ
                               </span>
                             )}
                           </div>
@@ -433,32 +471,28 @@ export const AdminUsers: React.FC = () => {
 
                         <td className="py-3 px-4">
                           {u.role === 'admin' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-950/70 text-indigo-300 border border-indigo-800/60">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-800/60">
                               <Shield className="w-3 h-3 text-indigo-400" />
-                              <span>ผู้ดูแลระบบ (Admin)</span>
+                              <span>ผู้ดูแลระบบ</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-sky-950/70 text-sky-300 border border-sky-800/60">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-sky-950 text-sky-300 border border-sky-800/60">
                               <UserCheck className="w-3 h-3 text-sky-400" />
-                              <span>ช่างประจำศูนย์ (Technician)</span>
+                              <span>ช่างเทคนิคประจำศูนย์</span>
                             </span>
                           )}
                         </td>
 
-                        <td className="py-3 px-4 font-mono text-slate-300">
-                          {u.cel}
-                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-300">{u.cel}</td>
 
-                        <td className="py-3 px-4 text-slate-400">
-                          {u.email}
-                        </td>
+                        <td className="py-3 px-4 text-slate-400">{u.email}</td>
 
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => openEditModal(u)}
                               title="แก้ไขข้อมูลผู้ใช้"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-sky-400 hover:bg-sky-950/50 transition-colors cursor-pointer"
+                              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 transition-colors cursor-pointer"
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
@@ -467,17 +501,16 @@ export const AdminUsers: React.FC = () => {
                               disabled={isCurrent}
                               onClick={() => setDeleteTarget(u)}
                               title={isCurrent ? 'ไม่สามารถลบบัญชีของตัวเองได้' : 'ลบผู้ใช้'}
-                              className={`p-1.5 rounded-lg transition-colors ${
+                              className={`p-2 rounded-xl transition-colors ${
                                 isCurrent
-                                  ? 'text-slate-600 cursor-not-allowed'
-                                  : 'text-slate-400 hover:text-rose-400 hover:bg-rose-950/50 cursor-pointer'
+                                  ? 'bg-slate-900 text-slate-600 cursor-not-allowed border border-slate-800'
+                                  : 'bg-red-600 hover:bg-red-500 text-white cursor-pointer'
                               }`}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
-
                       </tr>
                     );
                   })}
@@ -488,16 +521,21 @@ export const AdminUsers: React.FC = () => {
         )}
       </div>
 
-      {/* ======================================================== */}
-      {/* MODAL: ADD / EDIT USER */}
-      {/* ======================================================== */}
+      {/* MODAL: ADD / EDIT USER (Click outside to close) */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative animate-modal max-h-[90vh] overflow-y-auto">
-            
+        <div
+          onClick={() => setModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative animate-modal max-h-[90vh] overflow-y-auto"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-sm sm:text-base font-bold text-white">
-                {editingUser ? `แก้ไขข้อมูลผู้ใช้งาน: @${editingUser.username}` : 'เพิ่มผู้ใช้งานใหม่ (ช่าง / Admin)'}
+                {editingUser
+                  ? `แก้ไขข้อมูลผู้ใช้งาน: @${editingUser.username}`
+                  : 'เพิ่มผู้ใช้งานใหม่'}
               </h3>
               <button
                 onClick={() => setModalOpen(false)}
@@ -508,18 +546,16 @@ export const AdminUsers: React.FC = () => {
             </div>
 
             {formError && (
-              <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800/70 text-rose-300 text-xs flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
             <form onSubmit={handleFormSubmit} className="space-y-3.5 text-xs">
-              
-              {/* Username & Password */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">Username *</label>
+                  <label className="font-bold text-slate-300">ชื่อผู้ใช้ (Username) *</label>
                   <input
                     type="text"
                     required
@@ -527,7 +563,7 @@ export const AdminUsers: React.FC = () => {
                     value={form.username}
                     onChange={(e) => setForm({ ...form, username: e.target.value })}
                     placeholder="เช่น tech_somchai"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 disabled:opacity-50 disabled:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 disabled:opacity-50 disabled:bg-slate-900 focus:outline-none focus:border-sky-500"
                   />
                   {editingUser && (
                     <span className="text-[10px] text-slate-500">Username ไม่สามารถเปลี่ยนได้</span>
@@ -536,7 +572,7 @@ export const AdminUsers: React.FC = () => {
 
                 <div className="space-y-1">
                   <label className="font-bold text-slate-300">
-                    {editingUser ? 'รหัสผ่านใหม่ (เว้นว่างหากไม่เปลี่ยน)' : 'Password (รหัสผ่าน) *'}
+                    {editingUser ? 'รหัสผ่านใหม่ (เว้นว่างหากไม่เปลี่ยน)' : 'รหัสผ่าน (Password) *'}
                   </label>
                   <input
                     type="password"
@@ -544,43 +580,40 @@ export const AdminUsers: React.FC = () => {
                     value={form.pwd}
                     onChange={(e) => setForm({ ...form, pwd: e.target.value })}
                     placeholder={editingUser ? 'กรอกเมื่อต้องการเปลี่ยน' : 'รหัสผ่านอย่างน้อย 4 ตัว'}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
                   />
                 </div>
               </div>
 
-              {/* First Name & Last Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">ชื่อจริง (u_name) *</label>
+                  <label className="font-bold text-slate-300">ชื่อจริง *</label>
                   <input
                     type="text"
                     required
                     value={form.u_name}
                     onChange={(e) => setForm({ ...form, u_name: e.target.value })}
                     placeholder="เช่น สมชาย"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">นามสกุล (u_surname) *</label>
+                  <label className="font-bold text-slate-300">นามสกุล *</label>
                   <input
                     type="text"
                     required
                     value={form.u_surname}
                     onChange={(e) => setForm({ ...form, u_surname: e.target.value })}
                     placeholder="เช่น ช่างซ่อม"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
                   />
                 </div>
               </div>
 
-              {/* Role Selection */}
               <div className="space-y-1">
-                <label className="font-bold text-slate-300">สิทธิ์การเข้าถึง (Role) *</label>
+                <label className="font-bold text-slate-300">สิทธิ์การใช้งาน *</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  
                   <label
                     className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
                       form.role === 'technician'
@@ -597,11 +630,15 @@ export const AdminUsers: React.FC = () => {
                       className="mt-0.5 text-sky-500 focus:ring-sky-500"
                     />
                     <div>
-                      <p className={`font-bold ${form.role === 'technician' ? 'text-sky-300' : 'text-slate-300'}`}>
-                        ช่าง (Technician)
+                      <p
+                        className={`font-bold ${
+                          form.role === 'technician' ? 'text-sky-300' : 'text-slate-300'
+                        }`}
+                      >
+                        ช่างเทคนิค (Technician)
                       </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        จัดการคิวงานซ่อม (Inbox) และดูประวัติผลงานการซ่อม
+                        จัดการคิวงานซ่อม และดูประวัติการซ่อม (ไม่เห็นหน้าภาพรวมรายรับ)
                       </p>
                     </div>
                   </label>
@@ -622,46 +659,47 @@ export const AdminUsers: React.FC = () => {
                       className="mt-0.5 text-indigo-500 focus:ring-indigo-500"
                     />
                     <div>
-                      <p className={`font-bold ${form.role === 'admin' ? 'text-indigo-300' : 'text-slate-300'}`}>
+                      <p
+                        className={`font-bold ${
+                          form.role === 'admin' ? 'text-indigo-300' : 'text-slate-300'
+                        }`}
+                      >
                         ผู้ดูแลระบบ (Admin)
                       </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        เข้าถึงได้ทุกหน้า (Dashboard, Services, Inbox, History, Users)
+                        เข้าถึงได้ทุกส่วน รวมถึงภาพรวมรายรับและการมอบหมายงานให้ช่าง
                       </p>
                     </div>
                   </label>
-
                 </div>
               </div>
 
-              {/* Phone & Email */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">เบอร์โทรศัพท์ (cel) *</label>
+                  <label className="font-bold text-slate-300">เบอร์โทรศัพท์ *</label>
                   <input
                     type="tel"
                     required
                     value={form.cel}
                     onChange={handlePhoneChange}
                     placeholder="0xx-xxx-xxxx"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">อีเมล (email) *</label>
+                  <label className="font-bold text-slate-300">อีเมล *</label>
                   <input
                     type="email"
                     required
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="technician@fixplease.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+                    placeholder="technician@gmail.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
                   />
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="pt-4 flex justify-end gap-2.5 border-t border-slate-800">
                 <button
                   type="button"
@@ -673,31 +711,38 @@ export const AdminUsers: React.FC = () => {
                 <button
                   type="submit"
                   disabled={formSubmitting}
-                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  {formSubmitting ? 'กำลังบันทึก...' : editingUser ? 'บันทึกการแก้ไข' : 'เพิ่มผู้ใช้งาน'}
+                  {formSubmitting
+                    ? 'กำลังบันทึก...'
+                    : editingUser
+                    ? 'บันทึกการแก้ไข'
+                    : 'เพิ่มผู้ใช้งาน'}
                 </button>
               </div>
-
             </form>
-
           </div>
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* DELETE CONFIRMATION MODAL */}
-      {/* ======================================================== */}
+      {/* DELETE CONFIRMATION MODAL (Click outside to close + Red Delete Button) */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-6 text-center space-y-4 shadow-2xl animate-modal">
-            <div className="w-12 h-12 rounded-2xl bg-rose-950/60 border border-rose-800/60 text-rose-400 flex items-center justify-center mx-auto">
+        <div
+          onClick={() => setDeleteTarget(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-sm p-6 text-center space-y-4 shadow-2xl animate-modal"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-red-950/80 border border-red-800/70 text-red-400 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
             <div>
               <h3 className="text-base font-bold text-white">ยืนยันการลบผู้ใช้งาน?</h3>
-              <p className="text-xs text-slate-400 mt-1 font-normal">
-                ต้องการลบคุณ "{deleteTarget.u_name} {deleteTarget.u_surname}" (@{deleteTarget.username}) หรือไม่?
+              <p className="text-xs text-slate-400 mt-1">
+                ต้องการลบคุณ "{deleteTarget.u_name} {deleteTarget.u_surname}" (@
+                {deleteTarget.username}) หรือไม่?
               </p>
             </div>
             <div className="flex items-center justify-center gap-2.5 pt-2">
@@ -710,7 +755,7 @@ export const AdminUsers: React.FC = () => {
               <button
                 onClick={handleDeleteUser}
                 disabled={deleting}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors cursor-pointer"
               >
                 {deleting ? 'กำลังลบ...' : 'ยืนยันลบ'}
               </button>
@@ -718,7 +763,6 @@ export const AdminUsers: React.FC = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };

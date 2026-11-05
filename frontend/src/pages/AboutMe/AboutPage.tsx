@@ -1,73 +1,56 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
+  MapPin,
+  Phone,
+  Mail,
+  Clock,
+  CheckCircle2,
+  Send,
   Wrench,
+  AlertCircle,
+  User,
+  Image as ImageIcon,
+  MessageSquare,
   ShieldCheck,
   Award,
-  CheckCircle2,
-  PhoneCall,
-  Mail,
-  MapPin,
-  Clock,
-  ArrowRight,
-  Send,
-  AlertCircle,
-  Check,
-  Sparkles,
   ZoomIn,
+  X,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
 import { useService } from '../../context/ServiceContext';
 import { ImageLightbox } from '../../components/ui/ImageLightbox';
-import type { Service } from '../../types';
-
-const EMAIL_REGEX =
-  /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9-]+\.)*(gmail\.com|hotmail\.com|outlook\.com|yahoo\.com|icloud\.com|[a-zA-Z0-9-]+\.(com|co\.th|ac\.th|or\.th|go\.th))$/i;
+import workshopImage from '../../assets/hero-repair.jpg';
 
 export const AboutPage: React.FC = () => {
-  const { selectedService, selectService, clearSelectedService } = useService();
+  const {
+    selectedService,
+    selectService,
+    clearSelectedService,
+    categories,
+    services,
+    showToast,
+  } = useService();
   const location = useLocation();
-  const navigate = useNavigate();
 
-  // Refs for smooth scrolling
-  const errorAlertRef = useRef<HTMLDivElement>(null);
-  const successSectionRef = useRef<HTMLDivElement>(null);
-
-  // Services list for dropdown
-  const [servicesList, setServicesList] = useState<Service[]>([]);
-  const [selectedServiceId, setSelectedServiceId] = useState<number | 'unspecified'>('unspecified');
-
-  // Lightbox State
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
 
-  // Contact Form State
-  const [formData, setFormData] = useState({
-    cm_username: '',
-    cm_cel: '',
-    cm_email: '',
-    cm_symptom: '',
-    cm_image: '',
-  });
+  // Contact Form States
+  const [serviceId, setServiceId] = useState<number | ''>('');
+  const [cmUsername, setCmUsername] = useState('');
+  const [cmCel, setCmCel] = useState('');
+  const [cmEmail, setCmEmail] = useState('');
+  const [cmSymptom, setCmSymptom] = useState('');
+  const [cmImage, setCmImage] = useState('');
 
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // Submission States
   const [submitting, setSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState<any>(null);
-  const [errorMessage, setErrorMessage] = useState<string>('');
-  const [toastAlert, setToastAlert] = useState<string | null>(null);
-
-  useEffect(() => {
-    apiRequest<Service[]>('/services')
-      .then((res) => {
-        if (res.success && res.data) {
-          setServicesList(res.data.filter((s) => s.status));
-        }
-      })
-      .catch((err) => console.error('Error fetching services for dropdown:', err));
-  }, []);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     if (selectedService) {
-      setSelectedServiceId(selectedService.id);
+      setServiceId(selectedService.id);
     }
   }, [selectedService]);
 
@@ -75,29 +58,10 @@ export const AboutPage: React.FC = () => {
     if (location.hash === '#contact') {
       const el = document.getElementById('contact');
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 100);
       }
     }
-  }, [location.hash]);
-
-  const handleServiceChange = (val: string) => {
-    if (val === 'unspecified') {
-      setSelectedServiceId('unspecified');
-      clearSelectedService();
-    } else {
-      const id = Number(val);
-      setSelectedServiceId(id);
-      const found = servicesList.find((s) => s.id === id);
-      if (found) {
-        selectService(found);
-      }
-    }
-  };
-
-  const currentChosenService =
-    selectedServiceId !== 'unspecified'
-      ? servicesList.find((s) => s.id === selectedServiceId) || selectedService
-      : null;
+  }, [location]);
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\D/g, '').slice(0, 10);
@@ -107,83 +71,74 @@ export const AboutPage: React.FC = () => {
     } else if (raw.length > 3) {
       formatted = `${raw.slice(0, 3)}-${raw.slice(3)}`;
     }
-    setFormData((prev) => ({ ...prev, cm_cel: formatted }));
-    if (fieldErrors.cm_cel) {
-      setFieldErrors((prev) => {
-        const next = { ...prev };
-        delete next.cm_cel;
-        return next;
-      });
+    setCmCel(formatted);
+  };
+
+  const handleServiceSelectChange = (val: string) => {
+    if (!val) {
+      setServiceId('');
+      clearSelectedService();
+      return;
+    }
+    const numId = Number(val);
+    setServiceId(numId);
+    const found = services.find((s) => s.id === numId);
+    if (found) {
+      selectService(found);
     }
   };
 
-  const validateForm = () => {
-    const errors: Record<string, string> = {};
-
-    if (!formData.cm_username.trim()) {
-      errors.cm_username = 'กรุณากรอกชื่อ-นามสกุลของผู้ส่งซ่อม';
-    } else if (formData.cm_username.trim().length < 2) {
-      errors.cm_username = 'ชื่อ-นามสกุลต้องมีอย่างน้อย 2 ตัวอักษร';
-    }
-
-    const cleanCel = formData.cm_cel.replace(/\D/g, '');
-    if (!cleanCel) {
-      errors.cm_cel = 'กรุณากรอกเบอร์โทรศัพท์ติดต่อ';
-    } else if (!/^0[689]\d{8}$/.test(cleanCel)) {
-      errors.cm_cel = 'กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (06x, 08x, 09x ครบ 10 หลัก)';
-    }
-
-    const emailTrimmed = formData.cm_email.trim();
-    if (!emailTrimmed) {
-      errors.cm_email = 'กรุณากรอกอีเมลติดต่อ';
-    } else if (!EMAIL_REGEX.test(emailTrimmed)) {
-      errors.cm_email =
-        'รูปแบบอีเมลไม่ถูกต้อง (อนุญาตเฉพาะ @gmail.com, @hotmail.com, @outlook.com, @yahoo.com, @icloud.com หรือโดเมนมาตรฐาน .com, .co.th, .ac.th)';
-    }
-
-    if (!formData.cm_symptom.trim()) {
-      errors.cm_symptom = 'กรุณาระบุอาการเสียของสินค้า';
-    } else if (formData.cm_symptom.trim().length < 5) {
-      errors.cm_symptom = 'กรุณาระบุอาการเสียอย่างน้อย 5 ตัวอักษร';
-    }
-
-    return errors;
-  };
-
-  useEffect(() => {
-    if (submitSuccess && successSectionRef.current) {
-      successSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [submitSuccess]);
+  const currentServiceObj =
+    services.find((s) => s.id === Number(serviceId)) || selectedService || null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage('');
-    setFieldErrors({});
+    setSuccessMsg('');
+    setErrorMsg('');
 
-    const errors = validateForm();
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      const firstError = Object.values(errors)[0];
-      setErrorMessage(firstError);
+    if (!cmUsername.trim() || cmUsername.trim().length < 2) {
+      setErrorMsg('กรุณากรอกชื่อของคุณ (อย่างน้อย 2 ตัวอักษร)');
+      return;
+    }
 
-      setTimeout(() => {
-        if (errorAlertRef.current) {
-          errorAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 50);
+    const cleanPhone = cmCel.replace(/\D/g, '');
+    if (!cleanPhone) {
+      setErrorMsg('กรุณากรอกเบอร์โทรศัพท์');
+      return;
+    }
+    if (!/^0[689]\d{8}$/.test(cleanPhone)) {
+      setErrorMsg('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (ขึ้นต้นด้วย 06, 08 หรือ 09 ครบ 10 หลัก)');
+      return;
+    }
+
+    const emailRegex =
+      /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9-]+\.)*(gmail\.com|hotmail\.com|outlook\.com|yahoo\.com|icloud\.com|[a-zA-Z0-9-]+\.(com|co\.th|ac\.th|or\.th|go\.th))$/i;
+    if (!cmEmail.trim()) {
+      setErrorMsg('กรุณากรอกอีเมลสำหรับติดต่อกลับ');
+      return;
+    }
+    if (!emailRegex.test(cmEmail.trim())) {
+      setErrorMsg(
+        'รูปแบบอีเมลไม่ถูกต้อง (รองรับ @gmail.com, @hotmail.com, @outlook.com, @yahoo.com, @icloud.com หรือโดเมนมาตรฐาน .com, .co.th, .ac.th)'
+      );
+      return;
+    }
+
+    if (!cmSymptom.trim() || cmSymptom.trim().length < 5) {
+      setErrorMsg('กรุณาระบุอาการเสียของอุปกรณ์อย่างน้อย 5 ตัวอักษร');
       return;
     }
 
     setSubmitting(true);
+
     try {
-      const payload: any = {
-        service_id: selectedServiceId === 'unspecified' ? null : selectedServiceId,
-        cm_username: formData.cm_username.trim(),
-        cm_cel: formData.cm_cel.trim(),
-        cm_email: formData.cm_email.trim(),
-        cm_symptom: formData.cm_symptom.trim(),
-        cm_image: formData.cm_image.trim() || null,
+      const payload = {
+        service_id: serviceId ? Number(serviceId) : null,
+        cm_username: cmUsername.trim(),
+        cm_cel: cmCel.trim(),
+        cm_email: cmEmail.trim(),
+        cm_symptom: cmSymptom.trim(),
+        cm_image: cmImage.trim() ? cmImage.trim() : null,
       };
 
       const res = await apiRequest('/inbox', {
@@ -192,494 +147,434 @@ export const AboutPage: React.FC = () => {
       });
 
       if (res.success) {
-        setSubmitSuccess(res.data);
-        setToastAlert('ส่งคำขอซ่อมสำเร็จแล้ว');
-        setFormData({
-          cm_username: '',
-          cm_cel: '',
-          cm_email: '',
-          cm_symptom: '',
-          cm_image: '',
-        });
-        setFieldErrors({});
-        setErrorMessage('');
+        const msg =
+          res.message || 'ส่งข้อมูลแจ้งซ่อมเรียบร้อยแล้ว ช่างจะติดต่อกลับเพื่อยืนยันรายละเอียดโดยเร็ว';
+        setSuccessMsg(msg);
+        showToast('ส่งเรื่องแจ้งซ่อมเรียบร้อยแล้ว ช่างจะติดต่อกลับโดยเร็ว');
+        setCmUsername('');
+        setCmCel('');
+        setCmEmail('');
+        setCmSymptom('');
+        setCmImage('');
+        setServiceId('');
+        clearSelectedService();
       } else {
-        setErrorMessage(res.message || 'ส่งข้อมูลไม่สำเร็จ');
-        setTimeout(() => {
-          if (errorAlertRef.current) {
-            errorAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }, 50);
+        setErrorMsg(res.message || 'ไม่สามารถส่งข้อความได้ กรุณาตรวจสอบข้อมูลอีกครั้ง');
+        showToast(res.message || 'ไม่สามารถส่งข้อมูลได้', 'error');
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'เกิดข้อผิดพลาดในการส่งข้อมูล');
-      setTimeout(() => {
-        if (errorAlertRef.current) {
-          errorAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 50);
+      setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่อีกครั้ง');
+      showToast(err.message || 'เกิดข้อผิดพลาดในการส่งข้อมูล', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="py-8 sm:py-12 bg-[#f8fafc] min-h-screen text-slate-800">
-      
-      {/* Image Lightbox */}
+    <div className="py-8 sm:py-12 bg-[#f8fafc] min-h-screen space-y-10 sm:space-y-14">
       <ImageLightbox
         src={lightboxImage?.src || null}
         alt={lightboxImage?.alt}
         onClose={() => setLightboxImage(null)}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 sm:space-y-16">
-        
-        {/* ======================================================== */}
-        {/* 1. ABOUT ME / SHOP SECTION */}
-        {/* ======================================================== */}
-        <section className="space-y-8 sm:space-y-10">
-          
-          <div className="text-center max-w-3xl mx-auto">
-            <span className="text-[11px] font-bold tracking-wider uppercase text-sky-800 bg-sky-50 px-3 py-1 rounded-full border border-sky-200 inline-flex items-center gap-1.5 mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-              <span>เกี่ยวกับศูนย์บริการ Fix Please (About Me)</span>
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-              ความมุ่งมั่นและมาตรฐานงานซ่อมระดับมืออาชีพ
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed font-normal">
-              Fix Please ก่อตั้งขึ้นจากความหลงใหลในเทคโนโลยีและวงจรอิเล็กทรอนิกส์ เรามุ่งเน้นการให้บริการซ่อมบำรุงที่โปร่งใส วิเคราะห์ปัญหาตรงจุด ไม่ยัดเยียดการเปลี่ยนอะไหล่ที่ไม่จำเป็น
-            </p>
-          </div>
+      {/* ======================================================== */}
+      {/* 1. ABOUT US & STORE INFORMATION (ไม่มีกรอบแผนที่ตาม Requirement) */}
+      {/* ======================================================== */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-8 lg:p-10 space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
+            {/* Left Column: About Narrative */}
+            <div className="lg:col-span-7 space-y-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-sky-700">
+                เกี่ยวกับศูนย์บริการของเรา
+              </p>
 
-          {/* Core Values Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              {
-                icon: Award,
-                title: 'ช่างผู้เชี่ยวชาญ',
-                desc: 'ทีมช่างผ่านการอบรมงานซ่อมระดับชิปเซ็ต ประสบการณ์มากกว่า 10 ปี',
-                iconColor: 'text-sky-600 bg-sky-50 border-sky-100',
-              },
-              {
-                icon: Wrench,
-                title: 'เครื่องมือระดับแล็บ',
-                desc: 'กล้องไมโครสโคปความแม่นยำสูง เครื่องเป่าลมร้อนควบคุมอุณหภูมิมาตรฐาน',
-                iconColor: 'text-indigo-600 bg-indigo-50 border-indigo-100',
-              },
-              {
-                icon: ShieldCheck,
-                title: 'รับประกันงานซ่อม 90 วัน',
-                desc: 'อุ่นใจหลังซ่อมด้วยการรับประกันชิ้นส่วนและบริการ หากมีปัญหาดูแลฟรี',
-                iconColor: 'text-emerald-600 bg-emerald-50 border-emerald-100',
-              },
-              {
-                icon: CheckCircle2,
-                title: 'ปลอดภัยต่อข้อมูล',
-                desc: 'รักษาความลับข้อมูลส่วนบุคคลในเครื่องของลูกค้า 100% ไม่เปิดดูหรือคัดลอก',
-                iconColor: 'text-sky-600 bg-sky-50 border-sky-100',
-              },
-            ].map((val, idx) => {
-              const Icon = val.icon;
-              return (
-                <div
-                  key={idx}
-                  className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-sm transition-all duration-200 space-y-2"
-                >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${val.iconColor}`}>
-                    <Icon className="w-5 h-5" />
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight leading-snug text-balance">
+                <span className="inline-block">FixPlease ศูนย์ซ่อมอุปกรณ์ไอที</span>{' '}
+                <span className="text-sky-600 inline-block">
+                  ที่เน้นความโปร่งใสและมาตรฐานงานช่าง
+                </span>
+              </h1>
+
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed text-pretty">
+                <span className="inline-block">เราเป็นศูนย์ซ่อมคอมพิวเตอร์ โน้ตบุ๊ก</span>{' '}
+                <span className="inline-block">และสมาร์ตโฟนที่ก่อตั้งโดยทีมช่างเทคนิค</span>{' '}
+                <span className="inline-block">ผู้มีประสบการณ์ด้านฮาร์ดแวร์และแผงวงจรกว่า 10 ปี</span>{' '}
+                <span className="inline-block">ทุกขั้นตอนตั้งแต่การรับเครื่อง</span>{' '}
+                <span className="inline-block">การประเมินราคา ไปจนถึงการส่งมอบงาน</span>{' '}
+                <span className="inline-block">ถูกบันทึกอย่างเป็นระบบเพื่อให้ลูกค้าตรวจสอบได้จริง</span>
+              </p>
+
+              {/* Key Commitments */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div className="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-4 h-4" />
                   </div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    {val.title}
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed font-normal">
-                    {val.desc}
-                  </p>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">รักษาข้อมูลส่วนตัวปลอดภัย</h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5 text-pretty">
+                      มีขั้นตอนสำรองข้อมูลและไม่เข้าถึงไฟล์ส่วนตัวของลูกค้าโดยเด็ดขาด
+                    </p>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
 
-          {/* Shop Details */}
-          <div className="p-5 sm:p-7 rounded-2xl bg-white border border-slate-200/80 shadow-2xs grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
-            <div className="lg:col-span-2 space-y-3">
-              <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                ยินดีต้อนรับสู่หน้าร้านและศูนย์รับบริการ
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
-                ท่านสามารถนำอุปกรณ์เดินทางเข้ามาให้ช่างตรวจเช็คอาการได้โดยตรง หรือส่งผ่านบริการขนส่งพัสดุ (Flash, Kerry, ไปรษณีย์ไทย) เรามีทีมงานคอยรับและบันทึกข้อมูลเข้าระบบพร้อมถ่ายภาพสภาพเครื่องส่งให้ท่านตรวจสอบ
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs text-slate-600">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-sky-600 shrink-0" />
-                  <span>123/45 ถนนสุขุมวิท คลองเตย กทม. 10110</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <PhoneCall className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>081-234-5678 (สายด่วนช่าง)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-sky-600 shrink-0" />
-                  <span>contact@fixplease.com</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-slate-500 shrink-0" />
-                  <span>เปิดบริการ: จันทร์ - เสาร์ 08:30 - 18:30 น.</span>
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">อะไหล่แท้ รับประกัน 90 วัน</h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5 text-pretty">
+                      คัดสรรอะไหล่ตรงรุ่นและทดสอบความเสถียรของเครื่องก่อนส่งมอบทุกครั้ง
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="p-5 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col items-center justify-center text-center space-y-1.5">
-              <div className="w-10 h-10 rounded-full bg-white shadow-2xs flex items-center justify-center text-sky-600">
-                <MapPin className="w-5 h-5" />
-              </div>
-              <p className="text-xs font-bold text-slate-900">แผนที่ศูนย์บริการ Fix Please</p>
-              <p className="text-[11px] text-slate-500 font-normal">ติดสถานี BTS พร้อมที่จอดรถสะดวกสบาย</p>
-            </div>
-          </div>
-
-        </section>
-
-        {/* ======================================================== */}
-        {/* 2. CONTACT US / REPAIR INTAKE SECTION */}
-        {/* ======================================================== */}
-        <section id="contact" className="scroll-mt-20 pt-2">
-          
-          <div className="p-5 sm:p-8 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm relative overflow-hidden">
-            
-            {/* Section Header */}
-            <div className="max-w-2xl mb-6">
-              <span className="text-[11px] font-bold tracking-wider uppercase text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200 inline-flex items-center gap-1.5 mb-2">
-                <Send className="w-3.5 h-3.5" />
-                <span>Contact Us (แจ้งนัดหมายส่งซ่อม)</span>
-              </span>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mt-1">
-                ส่งคำขอแจ้งซ่อมและนัดหมายช่าง
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1 font-normal">
-                กรอกรายละเอียดอาการเสียและข้อมูลติดต่อ ช่างประจำศูนย์จะติดต่อกลับเพื่อประเมินและนัดหมายเวลาซ่อมโดยเร็ว
-              </p>
-            </div>
-
-            {submitSuccess ? (
+            {/* Right Column: Workshop Image */}
+            <div className="lg:col-span-5">
               <div
-                ref={successSectionRef}
-                className="p-6 sm:p-8 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-center space-y-3 animate-modal scroll-mt-24"
+                onClick={() =>
+                  setLightboxImage({
+                    src: workshopImage,
+                    alt: 'ห้องซ่อมและเครื่องมือตรวจวิเคราะห์ของ FixPlease',
+                  })
+                }
+                className="group relative rounded-xl overflow-hidden border border-slate-200 aspect-[16/10] bg-slate-100 cursor-zoom-in"
               >
-                <div className="w-11 h-11 rounded-xl bg-emerald-500 text-white shadow-xs flex items-center justify-center mx-auto">
-                  <Check className="w-6 h-6 stroke-[3]" />
+                <img
+                  src={workshopImage}
+                  alt="FixPlease Repair Studio"
+                  className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/65 via-transparent to-transparent"></div>
+
+                <div className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-lg bg-slate-900/75 text-white text-[10px] font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <ZoomIn className="w-3 h-3" />
+                  <span>ขยายดูรูป</span>
                 </div>
-                <div className="max-w-md mx-auto space-y-1">
-                  <h3 className="text-base sm:text-lg font-bold text-emerald-950">
-                    ส่งข้อมูลแจ้งซ่อมสำเร็จเรียบร้อย!
-                  </h3>
-                  <p className="text-xs text-emerald-800 font-normal">
-                    รหัสคำขอซ่อม: <strong className="font-mono">#{submitSuccess.cm_id}</strong> | ช่างได้รับข้อมูลแล้วและจะติดต่อกลับผ่านเบอร์โทร <strong className="font-mono">{submitSuccess.cm_cel}</strong> โดยเร็ว
-                  </p>
-                </div>
-                <div className="pt-2 flex flex-wrap justify-center gap-2.5">
-                  <button
-                    onClick={() => {
-                      setSubmitSuccess(null);
-                      clearSelectedService();
-                      setSelectedServiceId('unspecified');
-                    }}
-                    className="px-4 py-2 rounded-xl bg-white border border-emerald-300 text-emerald-900 text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
-                  >
-                    ส่งรายการซ่อมอื่นเพิ่มเติม
-                  </button>
-                  <button
-                    onClick={() => navigate('/')}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors cursor-pointer"
-                  >
-                    กลับสู่หน้าแรก
-                  </button>
+
+                <div className="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-white">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-sky-300">
+                      ห้องปฏิบัติการงานซ่อม
+                    </p>
+                    <p className="text-xs font-bold">
+                      เครื่องมือตรวจเช็ควงจรและอุปกรณ์มาตรฐานครบครัน
+                    </p>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-5">
-                
-                {/* Service Selection Dropdown */}
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <Wrench className="w-4 h-4 text-sky-600" />
-                      <span>เลือกบริการที่ต้องการซ่อม (Service):</span>
-                    </label>
+            </div>
+          </div>
+
+          {/* Store Location, Hours & Direct Contact Cards (3-Column Full Width, No Map Placeholder) */}
+          <div className="pt-6 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+              <div className="w-9 h-9 rounded-lg bg-sky-600 text-white flex items-center justify-center shrink-0">
+                <MapPin className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <h3 className="text-xs font-bold text-slate-900">ที่ตั้งศูนย์บริการ</h3>
+                <p className="text-xs text-slate-600 leading-relaxed text-pretty">
+                  เลขที่ 99/1 อาคารดิจิทัลพลาซ่า ชั้น 3 ถนนพญาไท เขตราชเทวี กรุงเทพฯ 10400
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+              <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <h3 className="text-xs font-bold text-slate-900">วันและเวลาทำการ</h3>
+                <p className="text-xs text-slate-600">เปิดบริการทุกวัน: 09:30 – 20:00 น.</p>
+                <p className="text-[11px] text-emerald-700 font-semibold">
+                  รับเครื่องด่วนและให้คำปรึกษาตลอดเวลาทำการ
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+              <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <Phone className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <h3 className="text-xs font-bold text-slate-900">เบอร์ติดต่อและอีเมล</h3>
+                <p className="text-xs font-bold text-slate-800 font-mono">
+                  081-111-1111, 02-999-8888
+                </p>
+                <p className="text-[11px] text-slate-500">support@fixplease.co.th</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ======================================================== */}
+      {/* 2. IMPROVED CONTACT US / REPAIR REQUEST BOX */}
+      {/* ======================================================== */}
+      <section id="contact" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-20">
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-2xs overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+          {/* Left Panel: Repair Guide & Selected Service Summary */}
+          <div className="lg:col-span-4 bg-slate-900 text-white p-5 sm:p-7 flex flex-col justify-between space-y-6">
+            <div className="space-y-5">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-sky-400">
+                  แบบฟอร์มแจ้งซ่อมและปรึกษาช่าง
+                </p>
+                <h2 className="text-lg sm:text-xl font-extrabold text-white mt-1">
+                  ส่งข้อมูลอาการเสียให้ช่างประเมิน
+                </h2>
+                <p className="text-xs text-slate-300 mt-1.5 leading-relaxed text-pretty">
+                  <span className="inline-block">กรอกรายละเอียดอาการเสียของเครื่อง</span>{' '}
+                  <span className="inline-block">เพื่อให้ช่างตรวจสอบอะไหล่และติดต่อกลับ</span>{' '}
+                  <span className="inline-block">หากไม่แน่ใจอาการสามารถเว้นช่องบริการไว้ได้</span>
+                </p>
+              </div>
+
+              {/* Live Selected Service Card */}
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400">
+                    บริการที่คุณเลือกไว้
+                  </span>
+                  {currentServiceObj && (
                     <button
                       type="button"
-                      onClick={() => navigate('/services')}
-                      className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline inline-flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+                      onClick={() => {
+                        setServiceId('');
+                        clearSelectedService();
+                        showToast('ยกเลิกการเลือกบริการแล้ว สามารถส่งเป็นแบบปรึกษาช่างได้', 'info');
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
                     >
-                      <span>ดูรายละเอียดบริการทั้งหมด</span>
-                      <ArrowRight className="w-3 h-3" />
+                      <X className="w-3 h-3" />
+                      <span>ล้างค่า</span>
                     </button>
-                  </div>
-
-                  <select
-                    value={selectedServiceId}
-                    onChange={(e) => handleServiceChange(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-medium transition-all"
-                  >
-                    <option value="unspecified">
-                      🔍 ไม่แน่ใจอาการ / ปรึกษาช่างก่อน (ประเมินภายหลัง)
-                    </option>
-                    {servicesList.map((srv) => (
-                      <option key={srv.id} value={srv.id}>
-                        [{srv.cg_name || 'บริการ'}] {srv.name} — ฿{srv.price.toLocaleString()} บาท
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* Dynamic Service Status Card */}
-                  {currentChosenService ? (
-                    <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade">
-                      <div className="flex items-center gap-3">
-                        <div
-                          onClick={() => setLightboxImage({ src: currentChosenService.service_image, alt: currentChosenService.name })}
-                          className="relative group cursor-zoom-in w-12 h-12 rounded-lg overflow-hidden border border-slate-200 shrink-0"
-                        >
-                          <img
-                            src={currentChosenService.service_image}
-                            alt={currentChosenService.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src =
-                                'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=100';
-                            }}
-                          />
-                          <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                            <ZoomIn className="w-3.5 h-3.5" />
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-100">
-                              {currentChosenService.cg_name || 'บริการที่เลือก'}
-                            </span>
-                            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-mono">
-                              ฿{currentChosenService.price.toLocaleString()} บาท
-                            </span>
-                          </div>
-                          <p className="text-xs font-bold text-slate-800 mt-1">
-                            {currentChosenService.name}
-                          </p>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleServiceChange('unspecified')}
-                        className="text-[11px] font-medium text-slate-500 hover:text-sky-600 hover:underline self-start sm:self-auto shrink-0 cursor-pointer"
-                      >
-                        เปลี่ยนเป็นไม่แน่ใจอาการ
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="p-3 rounded-xl bg-sky-50/70 border border-sky-200/80 text-xs text-sky-900 flex items-start gap-2.5">
-                      <div className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5">
-                        i
-                      </div>
-                      <div>
-                        <p className="font-bold">โหมดปรึกษาอาการและประเมินราคาภายหลัง</p>
-                        <p className="text-[11px] text-sky-700 mt-0.5 font-normal">
-                          คุณสามารถส่งข้อมูลอาการเสียเข้ามาได้เลยทันที ช่างผู้เชี่ยวชาญจะติดต่อกลับเพื่อวินิจฉัยปัญหาและประเมินราคาก่อนเริ่มซ่อมจริง
-                        </p>
-                      </div>
-                    </div>
                   )}
                 </div>
 
-                {/* Error Banner */}
-                {errorMessage && (
-                  <div
-                    ref={errorAlertRef}
-                    className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-start gap-2.5 shadow-2xs animate-fade scroll-mt-24"
-                  >
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-rose-900">กรุณาตรวจสอบข้อมูลที่กรอก:</p>
-                      <p className="font-medium mt-0.5">{errorMessage}</p>
+                {currentServiceObj ? (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-bold text-white leading-snug">
+                      {currentServiceObj.name}
+                    </p>
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/80">
+                      <span className="text-[11px] text-sky-400 font-medium">
+                        หมวด: {currentServiceObj.cg_name || 'บริการซ่อม'}
+                      </span>
+                      <span className="font-mono font-bold text-emerald-400">
+                        ฿{currentServiceObj.price.toLocaleString()} บาท
+                      </span>
                     </div>
                   </div>
+                ) : (
+                  <p className="text-xs text-amber-300 font-medium">
+                    ยังไม่ได้ระบุบริการ (ส่งเรื่องเพื่อให้ช่างช่วยประเมินอาการได้)
+                  </p>
                 )}
+              </div>
 
-                {/* Form Inputs */}
-                <form onSubmit={handleSubmit} noValidate className="space-y-4">
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {/* Customer Name */}
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700">
-                        ชื่อ-นามสกุล ผู้ส่งซ่อม <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.cm_username}
-                        onChange={(e) => {
-                          setFormData({ ...formData, cm_username: e.target.value });
-                          if (fieldErrors.cm_username) {
-                            setFieldErrors((prev) => {
-                              const n = { ...prev };
-                              delete n.cm_username;
-                              return n;
-                            });
-                          }
-                        }}
-                        placeholder="เช่น สมชาย ใจดี"
-                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
-                          fieldErrors.cm_username
-                            ? 'bg-rose-50/50 border-rose-400 ring-1 ring-rose-400/50 focus:ring-rose-400 focus:border-rose-500'
-                            : 'bg-slate-50 border-slate-200 focus:ring-sky-500/20 focus:border-sky-500'
-                        }`}
-                      />
-                      {fieldErrors.cm_username && (
-                        <p className="text-[11px] text-rose-600 font-medium">{fieldErrors.cm_username}</p>
-                      )}
-                    </div>
-
-                    {/* Customer Phone */}
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700">
-                        เบอร์โทรศัพท์ติดต่อ <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.cm_cel}
-                        onChange={handlePhoneChange}
-                        placeholder="0xx-xxx-xxxx"
-                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 transition-all font-mono ${
-                          fieldErrors.cm_cel
-                            ? 'bg-rose-50/50 border-rose-400 ring-1 ring-rose-400/50 focus:ring-rose-400 focus:border-rose-500'
-                            : 'bg-slate-50 border-slate-200 focus:ring-sky-500/20 focus:border-sky-500'
-                        }`}
-                      />
-                      {fieldErrors.cm_cel && (
-                        <p className="text-[11px] text-rose-600 font-medium">{fieldErrors.cm_cel}</p>
-                      )}
-                    </div>
-
-                    {/* Customer Email */}
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-700">
-                        อีเมล <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.cm_email}
-                        onChange={(e) => {
-                          setFormData({ ...formData, cm_email: e.target.value });
-                          if (fieldErrors.cm_email) {
-                            setFieldErrors((prev) => {
-                              const n = { ...prev };
-                              delete n.cm_email;
-                              return n;
-                            });
-                          }
-                        }}
-                        placeholder="เช่น somchai@gmail.com"
-                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
-                          fieldErrors.cm_email
-                            ? 'bg-rose-50/50 border-rose-400 ring-1 ring-rose-400/50 focus:ring-rose-400 focus:border-rose-500'
-                            : 'bg-slate-50 border-slate-200 focus:ring-sky-500/20 focus:border-sky-500'
-                        }`}
-                      />
-                      {fieldErrors.cm_email && (
-                        <p className="text-[11px] text-rose-600 font-medium">{fieldErrors.cm_email}</p>
-                      )}
-                    </div>
+              {/* Steps List */}
+              <div className="space-y-3 pt-1">
+                <p className="text-xs font-bold text-slate-200">ขั้นตอนหลังจากส่งฟอร์มนี้:</p>
+                <div className="space-y-2.5 text-xs text-slate-300">
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-slate-800 text-sky-400 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      1
+                    </span>
+                    <span className="text-pretty">
+                      ข้อมูลจะถูกส่งเข้าสู่คิวงานซ่อมของช่างประจำศูนย์ทันที
+                    </span>
                   </div>
-
-                  {/* Symptom Details */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">
-                      อาการเสียของสินค้า / รายละเอียดที่ต้องการแจ้งช่าง <span className="text-rose-500">*</span>
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={formData.cm_symptom}
-                      onChange={(e) => {
-                        setFormData({ ...formData, cm_symptom: e.target.value });
-                        if (fieldErrors.cm_symptom) {
-                          setFieldErrors((prev) => {
-                            const n = { ...prev };
-                            delete n.cm_symptom;
-                            return n;
-                          });
-                        }
-                      }}
-                      placeholder="ระบุอาการเสีย เช่น จอแตกสัมผัสไม่ได้ หรือเครื่องเปิดไม่ติดมีเสียงร้องเตือน ฯลฯ"
-                      className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
-                        fieldErrors.cm_symptom
-                          ? 'bg-rose-50/50 border-rose-400 ring-1 ring-rose-400/50 focus:ring-rose-400 focus:border-rose-500'
-                          : 'bg-slate-50 border-slate-200 focus:ring-sky-500/20 focus:border-sky-500'
-                      }`}
-                    ></textarea>
-                    {fieldErrors.cm_symptom && (
-                      <p className="text-[11px] text-rose-600 font-medium">{fieldErrors.cm_symptom}</p>
-                    )}
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-slate-800 text-sky-400 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      2
+                    </span>
+                    <span className="text-pretty">
+                      ช่างติดต่อกลับตามเบอร์โทรศัพท์หรืออีเมลเพื่อแจ้งแนวทางและราคาประเมิน
+                    </span>
                   </div>
-
-                  {/* Image URL */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">
-                      ลิงก์รูปภาพตัวอย่างความเสียหาย (หากมี - ไม่บังคับ)
-                    </label>
-                    <input
-                      type="url"
-                      value={formData.cm_image}
-                      onChange={(e) => setFormData({ ...formData, cm_image: e.target.value })}
-                      placeholder="เช่น https://images.unsplash.com/..."
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
-                    />
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-slate-800 text-sky-400 font-mono text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      3
+                    </span>
+                    <span className="text-pretty">
+                      นำเครื่องเข้ามารับบริการที่ศูนย์ หรือส่งพัสดุตามที่นัดหมายกับช่าง
+                    </span>
                   </div>
+                </div>
+              </div>
+            </div>
 
-                  {/* Submit Button */}
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="w-full sm:w-auto px-7 py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      {submitting ? (
-                        <span>กำลังส่งข้อมูล...</span>
-                      ) : (
-                        <>
-                          <Send className="w-3.5 h-3.5" />
-                          <span>ยืนยันการส่งซ่อม (Submit Request)</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+            <div className="pt-4 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
+              <p className="font-semibold text-slate-200">ต้องการสอบถามด่วนทางโทรศัพท์?</p>
+              <p className="font-mono text-sky-400 font-bold text-xs">โทร. 081-111-1111</p>
+            </div>
+          </div>
 
-                </form>
+          {/* Right Panel: Clean Structured Form */}
+          <div className="lg:col-span-8 p-5 sm:p-8 space-y-5">
+            <div className="border-b border-slate-200 pb-3">
+              <h3 className="text-base sm:text-lg font-extrabold text-slate-900">
+                กรอกรายละเอียดเพื่อแจ้งซ่อมอุปกรณ์
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                ช่องที่มีเครื่องหมาย * จำเป็นต้องกรอกข้อมูลให้ครบถ้วน
+              </p>
+            </div>
 
+            {successMsg && (
+              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-start gap-3 animate-fade">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <h4 className="font-bold text-xs sm:text-sm">ส่งเรื่องแจ้งซ่อมสำเร็จ</h4>
+                  <p className="text-xs text-emerald-800">{successMsg}</p>
+                </div>
               </div>
             )}
 
+            {errorMsg && (
+              <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-start gap-2.5 animate-fade">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <div className="text-xs font-medium">{errorMsg}</div>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+              {/* 1. Service Selection */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <Wrench className="w-3.5 h-3.5 text-sky-600" />
+                  <span>1. รายการบริการที่ต้องการซ่อม (เว้นว่างได้หากต้องการปรึกษาช่างก่อน)</span>
+                </label>
+
+                <select
+                  value={serviceId}
+                  onChange={(e) => handleServiceSelectChange(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:bg-white focus:outline-none focus:border-slate-900 transition-colors cursor-pointer"
+                >
+                  <option value="">
+                    -- ไม่แน่ใจอาการ / ให้ช่างช่วยตรวจเช็คและประเมินราคา --
+                  </option>
+                  {categories.map((cat) => {
+                    const catServices = services.filter((s) => s.cg_id === cat.cg_id);
+                    if (catServices.length === 0) return null;
+                    return (
+                      <optgroup key={cat.cg_id} label={`หมวดหมู่: ${cat.cg_name}`}>
+                        {catServices.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} — ราคาประเมิน ฿{s.price.toLocaleString()} บาท
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* 2. Customer Contact Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-slate-500" />
+                    <span>ชื่อผู้ติดต่อ *</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={cmUsername}
+                    onChange={(e) => setCmUsername(e.target.value)}
+                    placeholder="ชื่อ-นามสกุล หรือชื่อเล่น"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-slate-500" />
+                    <span>เบอร์โทรศัพท์ (10 หลัก) *</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={cmCel}
+                    onChange={handlePhoneChange}
+                    placeholder="08x-xxx-xxxx"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-slate-500" />
+                    <span>อีเมลติดต่อกลับ *</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={cmEmail}
+                    onChange={(e) => setCmEmail(e.target.value)}
+                    placeholder="name@gmail.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* 3. Symptom Description */}
+              <div className="space-y-1.5 pt-1">
+                <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-slate-500" />
+                  <span>2. รายละเอียดอาการเสียของอุปกรณ์ *</span>
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={cmSymptom}
+                  onChange={(e) => setCmSymptom(e.target.value)}
+                  placeholder="ระบุรุ่นอุปกรณ์และอาการที่พบ เช่น โน้ตบุ๊กเปิดติดแต่ภาพไม่ขึ้นหน้าจอ, มือถือชาร์จไฟไม่เข้า..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors leading-relaxed"
+                ></textarea>
+              </div>
+
+              {/* 4. Optional Image URL */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
+                  <span>ลิงก์รูปภาพอาการเสียเพิ่มเติม (ถ้ามี)</span>
+                </label>
+                <input
+                  type="url"
+                  value={cmImage}
+                  onChange={(e) => setCmImage(e.target.value)}
+                  placeholder="https://example.com/device-photo.jpg (เว้นว่างได้)"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors"
+                />
+              </div>
+
+              {/* Submit Action */}
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-[11px] text-slate-500">
+                  ข้อมูลของท่านจะถูกส่งไปยังทีมช่างโดยตรงและเก็บรักษาเป็นความลับ
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-6 py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs sm:text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>{submitting ? 'กำลังส่งข้อมูล...' : 'ส่งเรื่องแจ้งซ่อม'}</span>
+                </button>
+              </div>
+            </form>
           </div>
-
-        </section>
-
-      </div>
-
-      {/* Toast Alert Notification */}
-      {toastAlert && (
-        <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-50 flex items-center justify-between sm:justify-start gap-3 px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-2xl animate-fade">
-          <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-5 h-5 text-emerald-100 shrink-0" />
-            <span className="text-xs font-bold">{toastAlert}</span>
-          </div>
-          <button
-            onClick={() => setToastAlert(null)}
-            className="ml-2 text-white/80 hover:text-white cursor-pointer font-bold text-sm"
-          >
-            ✕
-          </button>
         </div>
-      )}
+      </section>
     </div>
   );
 };

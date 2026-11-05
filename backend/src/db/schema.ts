@@ -14,7 +14,7 @@ import {
 // 0. PostgreSQL Enums
 // ==========================================
 export const userRoleEnum = pgEnum('user_role', ['admin', 'technician']);
-export const repairStatusEnum = pgEnum('repair_status', ['pending', 'completed']);
+export const repairStatusEnum = pgEnum('repair_status', ['pending', 'in_progress', 'completed']);
 
 // ==========================================
 // 1. Table: Categories (หมวดหมู่บริการ)
