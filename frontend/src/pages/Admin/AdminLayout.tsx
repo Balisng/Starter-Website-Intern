@@ -15,6 +15,9 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useService } from '../../context/ServiceContext';
 import { apiRequest } from '../../api/client';
+import { Navbar } from '../../components/layout/Navbar';
+import { Footer } from '../../components/layout/Footer';
+import { LoginPage } from '../Login/LoginPage';
 import logoImg from '../../assets/logo.jpg';
 
 export const AdminLayout: React.FC = () => {
@@ -56,8 +59,20 @@ export const AdminLayout: React.FC = () => {
     );
   }
 
+  // เข้าหน้า Login ผ่าน path /admin เท่านั้น
   if (!user) {
-    return <Navigate to="/login" replace />;
+    if (location.pathname !== '/admin') {
+      return <Navigate to="/admin" replace />;
+    }
+    return (
+      <div className="flex flex-col min-h-screen bg-[#f8fafc] text-slate-800 antialiased selection:bg-sky-600 selection:text-white overflow-x-hidden">
+        <Navbar />
+        <main className="flex-grow min-w-0">
+          <LoginPage />
+        </main>
+        <Footer />
+      </div>
+    );
   }
 
   // กฎสิทธิ์: ช่าง (technician) ห้ามเห็นหรือเข้าหน้า Dashboard เด็ดขาด
@@ -115,7 +130,7 @@ export const AdminLayout: React.FC = () => {
   const handleLogout = async () => {
     await logout();
     showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
-    navigate('/login', { replace: true });
+    navigate('/admin', { replace: true });
   };
 
   return (

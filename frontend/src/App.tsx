@@ -7,7 +7,6 @@ import { Footer } from './components/layout/Footer';
 import { HomePage } from './pages/Home/HomePage';
 import { ServicesPage } from './pages/Services/ServicesPage';
 import { AboutPage } from './pages/AboutMe/AboutPage';
-import { LoginPage } from './pages/Login/LoginPage';
 import { AdminLayout } from './pages/Admin/AdminLayout';
 import { AdminDashboard } from './pages/Admin/AdminDashboard';
 import { AdminServices } from './pages/Admin/AdminServices';
@@ -74,8 +73,10 @@ export function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/services" element={<ServicesPage />} />
               <Route path="/about" element={<AboutPage />} />
-              <Route path="/login" element={<LoginPage />} />
             </Route>
+
+            {/* Redirect legacy /login path to /admin */}
+            <Route path="/login" element={<Navigate to="/admin" replace />} />
 
             {/* 2. Admin Portal Routes (with Role Protection & Admin Workspace Sidebar) */}
             <Route path="/admin" element={<AdminLayout />}>

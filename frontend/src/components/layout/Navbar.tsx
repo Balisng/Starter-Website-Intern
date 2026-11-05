@@ -40,40 +40,31 @@ export const Navbar: React.FC = () => {
             </div>
           </Link>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                  isActive(link.path)
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                {link.name}
-              </Link>
-            ))}
-          </nav>
+          {/* Desktop Navigation Links & Logged-in Staff Shortcut (No Public Login Button) */}
+          <div className="hidden md:flex items-center gap-2">
+            <nav className="flex items-center gap-1">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                    isActive(link.path)
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  {link.name}
+                </Link>
+              ))}
+            </nav>
 
-          {/* Right Action Area */}
-          <div className="hidden md:flex items-center gap-2.5">
-            {user ? (
+            {user && (
               <Link
                 to={user.role === 'admin' ? '/admin/dashboard' : '/admin/inbox'}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors"
+                className="inline-flex items-center gap-2 ml-2 px-4 py-2 rounded-lg text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors"
               >
                 <ShieldCheck className="w-4 h-4 text-sky-400" />
                 <span>ระบบจัดการงานซ่อม ({user.u_name})</span>
-              </Link>
-            ) : (
-              <Link
-                to="/login"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-slate-600" />
-                <span>สำหรับเจ้าหน้าที่</span>
               </Link>
             )}
           </div>
@@ -109,8 +100,8 @@ export const Navbar: React.FC = () => {
             </Link>
           ))}
 
-          <div className="pt-2 mt-2 border-t border-slate-100">
-            {user ? (
+          {user && (
+            <div className="pt-2 mt-2 border-t border-slate-100">
               <Link
                 to={user.role === 'admin' ? '/admin/dashboard' : '/admin/inbox'}
                 onClick={() => setIsOpen(false)}
@@ -119,17 +110,8 @@ export const Navbar: React.FC = () => {
                 <ShieldCheck className="w-4 h-4 text-sky-400" />
                 <span>ระบบจัดการงานซ่อม ({user.u_name})</span>
               </Link>
-            ) : (
-              <Link
-                to="/login"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200"
-              >
-                <ShieldCheck className="w-4 h-4 text-slate-600" />
-                <span>เข้าสู่ระบบเจ้าหน้าที่</span>
-              </Link>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </header>
