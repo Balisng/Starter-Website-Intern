@@ -181,8 +181,9 @@ export const AboutPage: React.FC = () => {
       {/* ======================================================== */}
       {/* 1. ABOUT US & STORE INFORMATION (ไม่มีกรอบแผนที่ตาม Requirement) */}
       {/* ======================================================== */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-8 lg:p-10 space-y-8">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
+        {/* Top White Card: Brand Story & Workshop Image */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-8 lg:p-10 shadow-2xs">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center">
             {/* Left Column: About Narrative */}
             <div className="lg:col-span-7 space-y-4">
@@ -206,27 +207,27 @@ export const AboutPage: React.FC = () => {
                 <span className="inline-block">ถูกบันทึกอย่างเป็นระบบเพื่อให้ลูกค้าตรวจสอบได้จริง</span>
               </p>
 
-              {/* Key Commitments */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <div className="w-8 h-8 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+              {/* Key Commitments (Soft Tinted Highlights inside Narrative) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-sky-50/70 border border-sky-200/70">
+                  <div className="w-8 h-8 rounded-lg bg-sky-600 text-white flex items-center justify-center shrink-0">
                     <ShieldCheck className="w-4 h-4" />
                   </div>
                   <div>
                     <h3 className="text-xs font-bold text-slate-900">รักษาข้อมูลส่วนตัวปลอดภัย</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5 text-pretty">
+                    <p className="text-[11px] text-slate-600 mt-0.5 text-pretty">
                       มีขั้นตอนสำรองข้อมูลและไม่เข้าถึงไฟล์ส่วนตัวของลูกค้าโดยเด็ดขาด
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/70">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
                     <Award className="w-4 h-4" />
                   </div>
                   <div>
                     <h3 className="text-xs font-bold text-slate-900">อะไหล่แท้ รับประกัน 90 วัน</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5 text-pretty">
+                    <p className="text-[11px] text-slate-600 mt-0.5 text-pretty">
                       คัดสรรอะไหล่ตรงรุ่นและทดสอบความเสถียรของเครื่องก่อนส่งมอบทุกครั้ง
                     </p>
                   </div>
@@ -270,45 +271,56 @@ export const AboutPage: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Store Location, Hours & Direct Contact Cards (3-Column Full Width, No Map Placeholder) */}
-          <div className="pt-6 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
-              <div className="w-9 h-9 rounded-lg bg-sky-600 text-white flex items-center justify-center shrink-0">
-                <MapPin className="w-4 h-4" />
-              </div>
-              <div className="space-y-0.5">
-                <h3 className="text-xs font-bold text-slate-900">ที่ตั้งศูนย์บริการ</h3>
-                <p className="text-xs text-slate-600 leading-relaxed text-pretty">
-                  เลขที่ 99/1 อาคารดิจิทัลพลาซ่า ชั้น 3 ถนนพญาไท เขตราชเทวี กรุงเทพฯ 10400
-                </p>
-              </div>
+        {/* Separate 3-Column Dark Info Strip: Location, Hours & Direct Contact */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-start gap-3.5 p-5 rounded-2xl bg-slate-900 text-white border border-slate-800 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center shrink-0">
+              <MapPin className="w-5 h-5" />
             </div>
-
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
-              <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4" />
-              </div>
-              <div className="space-y-0.5">
-                <h3 className="text-xs font-bold text-slate-900">วันและเวลาทำการ</h3>
-                <p className="text-xs text-slate-600">เปิดบริการทุกวัน: 09:30 – 20:00 น.</p>
-                <p className="text-[11px] text-emerald-700 font-semibold">
-                  รับเครื่องด่วนและให้คำปรึกษาตลอดเวลาทำการ
-                </p>
-              </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 block">
+                Location
+              </span>
+              <h3 className="text-xs sm:text-sm font-bold text-white">ที่ตั้งศูนย์บริการ</h3>
+              <p className="text-xs text-slate-300 leading-relaxed text-pretty">
+                เลขที่ 99/1 อาคารดิจิทัลพลาซ่า ชั้น 3 ถนนพญาไท เขตราชเทวี กรุงเทพฯ 10400
+              </p>
             </div>
+          </div>
 
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200/80">
-              <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                <Phone className="w-4 h-4" />
-              </div>
-              <div className="space-y-0.5">
-                <h3 className="text-xs font-bold text-slate-900">เบอร์ติดต่อและอีเมล</h3>
-                <p className="text-xs font-bold text-slate-800 font-mono">
-                  081-111-1111, 02-999-8888
-                </p>
-                <p className="text-[11px] text-slate-500">support@fixplease.co.th</p>
-              </div>
+          <div className="flex items-start gap-3.5 p-5 rounded-2xl bg-slate-900 text-white border border-slate-800 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">
+                Working Hours
+              </span>
+              <h3 className="text-xs sm:text-sm font-bold text-white">วันและเวลาทำการ</h3>
+              <p className="text-xs text-slate-200 font-medium">
+                เปิดบริการทุกวัน: 09:30 – 20:00 น.
+              </p>
+              <p className="text-[11px] text-emerald-400 font-semibold">
+                รับเครื่องด่วนและให้คำปรึกษาตลอดเวลาทำการ
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3.5 p-5 rounded-2xl bg-slate-900 text-white border border-slate-800 shadow-2xs">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Phone className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
+                Direct Contact
+              </span>
+              <h3 className="text-xs sm:text-sm font-bold text-white">เบอร์ติดต่อและอีเมล</h3>
+              <p className="text-xs font-bold text-white font-mono">
+                081-111-1111, 02-999-8888
+              </p>
+              <p className="text-[11px] text-sky-300">support@fixplease.co.th</p>
             </div>
           </div>
         </div>
