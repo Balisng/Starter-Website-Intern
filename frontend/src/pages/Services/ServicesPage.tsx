@@ -178,16 +178,16 @@ export const ServicesPage: React.FC = () => {
         </div>
 
         {/* ================================================================= */}
-        {/* ส่วนที่ 1: ระบบค้นหาและกรองรายการบริการ (Filterable Section เดิม) */}
+        {/* ระบบค้นหาและแสดงรายการบริการ (รวมอยู่ใน Block เดียว แยกหมวดหมู่อัตโนมัติเมื่อเลือก "ทั้งหมด") */}
         {/* ================================================================= */}
         <section
           key={flashKey}
-          className={`space-y-4 sm:space-y-5 rounded-2xl ${
+          className={`bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-6 space-y-6 shadow-2xs ${
             flashKey > 0 ? 'animate-refresh-flash' : ''
           }`}
         >
           {/* Filter & Search Bar */}
-          <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="pb-4 border-b border-slate-200 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             {/* Category Filter Pills */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
               <button
@@ -238,24 +238,24 @@ export const ServicesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Filterable Services Grid (2 cols on mobile, 3 on md, 4 on lg) */}
+          {/* Services Content Inside This Single Block */}
           {catalogLoading && services.length === 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <div
                   key={n}
-                  className="h-52 sm:h-64 rounded-xl bg-white border border-slate-200 animate-pulse"
+                  className="h-52 sm:h-64 rounded-xl bg-slate-50 border border-slate-200 animate-pulse"
                 ></div>
               ))}
             </div>
           ) : filteredServices.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-10 text-center max-w-md mx-auto space-y-3">
-              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+            <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-8 sm:p-10 text-center max-w-md mx-auto space-y-3 my-4">
+              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-500 flex items-center justify-center mx-auto">
                 <Wrench className="w-5 h-5" />
               </div>
               <h3 className="text-sm font-bold text-slate-800">ไม่พบรายการบริการที่ค้นหา</h3>
               <p className="text-xs text-slate-500 text-pretty">
-                ลองเปลี่ยนหมวดหมู่หรือค้นหาด้วยคำอื่น หรือดูรายการแยกตามหมวดหมู่ด้านล่าง
+                ลองเปลี่ยนหมวดหมู่หรือค้นหาด้วยคำอื่นเพื่อดูรายการบริการทั้งหมด
               </p>
               <button
                 onClick={() => {
@@ -267,81 +267,83 @@ export const ServicesPage: React.FC = () => {
                 แสดงรายการทั้งหมด
               </button>
             </div>
+          ) : selectedCategory === 'all' ? (
+            /* เมื่อเลือก Filter "ทั้งหมด" -> แยกหมวดหมู่ให้อัตโนมัติภายใน Block เดียวกัน */
+            <div className="divide-y divide-slate-200 space-y-6">
+              {categories
+                .map((cat) => ({
+                  cat,
+                  items: filteredServices.filter((s) => s.cg_id === cat.cg_id),
+                }))
+                .filter((group) => group.items.length > 0)
+                .map(({ cat, items }, idx) => {
+                  const Icon = getCategoryIcon(cat.cg_name);
+                  return (
+                    <div key={cat.cg_id} className={idx > 0 ? 'pt-6 space-y-4' : 'space-y-4'}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0">
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <h2 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
+                              {getCategoryLabelThai(cat.cg_name)}
+                            </h2>
+                            <p className="text-[11px] text-slate-500">
+                              หมวดหมู่ {cat.cg_name}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold shrink-0">
+                          {items.length} รายการ
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                        {items.map((service) => renderServiceCard(service, `all-cat-${cat.cg_id}`))}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
-              {filteredServices.map((service) => renderServiceCard(service, 'filtered'))}
-            </div>
-          )}
-        </section>
-
-        {/* ================================================================= */}
-        {/* ส่วนที่ 2: กรอบแยกตามชนิดหมวดหมู่ (Static Category Showcase Boxes) */}
-        {/* แสดงรายการทั้งหมดของแต่ละชนิดโดยไม่ถูกกระทบจากตัวกรองด้านบน */}
-        {/* ================================================================= */}
-        {categories.length > 0 && (
-          <section className="space-y-6 pt-4 border-t border-slate-200">
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-sky-700 uppercase tracking-wider">
-                คลังบริการแยกตามประเภทอุปกรณ์
-              </p>
-              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
-                รายการบริการทั้งหมดแยกตามหมวดหมู่ ({categories.length} หมวดหมู่)
-              </h2>
-              <p className="text-xs text-slate-500 text-pretty">
-                <span className="inline-block">แสดงรายการซ่อมทั้งหมดของแต่ละประเภทอุปกรณ์</span>{' '}
-                <span className="inline-block">เพื่อให้เปรียบเทียบราคาในหมวดเดียวกันได้สะดวก</span>
-              </p>
-            </div>
-
-            <div className="space-y-5">
-              {categories.map((cat) => {
-                const Icon = getCategoryIcon(cat.cg_name);
-                const categoryServices = services.filter((s) => s.cg_id === cat.cg_id);
-
-                return (
-                  <div
-                    key={cat.cg_id}
-                    className="rounded-2xl bg-white border border-slate-200 p-3.5 sm:p-6 space-y-4"
-                  >
-                    {/* Category Box Header */}
-                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            /* เมื่อเลือกหมวดหมู่เฉพาะ -> แสดงหัวข้อหมวดหมู่นั้นพร้อมรายการภายใน Block เดียวกัน */
+            (() => {
+              const activeCat = categories.find((c) => c.cg_id === selectedCategory);
+              const Icon = activeCat ? getCategoryIcon(activeCat.cg_name) : Wrench;
+              return (
+                <div className="space-y-4">
+                  {activeCat && (
+                    <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0">
                           <Icon className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
-                            {getCategoryLabelThai(cat.cg_name)}
-                          </h3>
+                          <h2 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
+                            {getCategoryLabelThai(activeCat.cg_name)}
+                          </h2>
                           <p className="text-[11px] text-slate-500">
-                            รวมรายการซ่อมในหมวด {cat.cg_name} ทั้งหมด
+                            แสดงเฉพาะหมวดหมู่ {activeCat.cg_name}
                           </p>
                         </div>
                       </div>
 
-                      <span className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold shrink-0">
-                        {categoryServices.length} รายการ
+                      <span className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 text-xs font-bold shrink-0">
+                        {filteredServices.length} รายการ
                       </span>
                     </div>
+                  )}
 
-                    {/* Category Services Grid (Static - Unaffected by top filter) */}
-                    {categoryServices.length === 0 ? (
-                      <p className="text-xs text-slate-400 py-4 text-center">
-                        ยังไม่มีรายการบริการในหมวดหมู่นี้
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
-                        {categoryServices.map((service) =>
-                          renderServiceCard(service, `catbox-${cat.cg_id}`)
-                        )}
-                      </div>
-                    )}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                    {filteredServices.map((service) => renderServiceCard(service, 'filtered'))}
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
+                </div>
+              );
+            })()
+          )}
+        </section>
       </div>
     </div>
   );
