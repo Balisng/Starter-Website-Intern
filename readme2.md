@@ -471,3 +471,4 @@ bun run dev
 - **โครงการ:** FixPlease Repair Studio - Starter Website Intern
 - **เทคโนโลยีหลัก:** Bun, React 19, TypeScript, Tailwind CSS v4, Express, Drizzle ORM, Neon PostgreSQL
 - **สงวนลิขสิทธิ์:** พัฒนาขึ้นเพื่อการศึกษาและการใช้งานระบบศูนย์บริการซ่อมมาตรฐาน
+

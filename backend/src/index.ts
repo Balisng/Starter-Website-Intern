@@ -9,6 +9,9 @@ import apiRoutes from './routes';
 
 const app = express();
 
+// Trust reverse proxy (Vercel edge, Nginx, Cloudflare) for accurate client IP
+app.set('trust proxy', 1);
+
 // Middlewares: CORS with explicit origin whitelist from CLIENT_URL and Vercel domains
 app.use(
   cors({

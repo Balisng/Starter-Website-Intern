@@ -14,6 +14,29 @@ interface RateLimitRecord {
 
 const store = new Map<string, RateLimitRecord>();
 
+function getClientIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (Array.isArray(forwarded) && forwarded[0]) {
+    return forwarded[0].split(',')[0].trim();
+  }
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+  const realIp = req.headers['x-real-ip'];
+  if (typeof realIp === 'string' && realIp.trim()) {
+    return realIp.trim();
+  }
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+/**
+ * ฟังก์ชันสำหรับรีเซ็ต Rate Limit ในหน่วยความจำเมื่อล็อกอินสำเร็จ
+ */
+export function resetRateLimit(keyPrefix: string, req: Request): void {
+  const clientIp = getClientIp(req);
+  store.delete(`${keyPrefix}:${clientIp}`);
+}
+
 /**
  * สร้าง Middleware สำหรับจำกัดจำนวนครั้งในการยิง API (Rate Limiter) ตาม IP Address
  */
@@ -32,9 +55,7 @@ export function createRateLimiter(options: RateLimitOptions) {
       }
     }
 
-    const forwarded = req.headers['x-forwarded-for'];
-    const clientIp =
-      (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.ip) || 'unknown';
+    const clientIp = getClientIp(req);
     const key = `${keyPrefix}:${clientIp}`;
 
     const record = store.get(key);
@@ -72,13 +93,13 @@ export function createRateLimiter(options: RateLimitOptions) {
 }
 
 /**
- * จำกัดการล็อกอินไม่เกิน 10 ครั้ง ต่อ 15 นาที ต่อ IP (ป้องกันการสุ่มรหัสผ่าน Brute-force)
+ * จำกัดการล็อกอินไม่เกิน 30 ครั้ง ต่อ 1 นาที ต่อ IP (ป้องกันการสุ่มรหัสผ่าน Brute-force โดยไม่บล็อกผู้ใช้นานเกินไป)
  */
 export const loginRateLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 นาที
-  maxRequests: 10,
+  windowMs: 60 * 1000, // 1 นาที
+  maxRequests: 30,
   keyPrefix: 'auth_login',
-  message: 'คุณพยายามเข้าสู่ระบบบ่อยเกินไป กรุณารอ 15 นาทีแล้วลองใหม่อีกครั้ง',
+  message: 'คุณพยายามเข้าสู่ระบบบ่อยเกินไป กรุณารอ 1 นาทีแล้วลองใหม่อีกครั้ง',
 });
 
 /**
