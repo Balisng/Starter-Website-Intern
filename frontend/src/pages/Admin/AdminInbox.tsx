@@ -94,15 +94,19 @@ export const AdminInbox: React.FC = () => {
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const [catRes, srvRes, userRes] = await Promise.all([
+        const [catRes, srvRes, userRes] = await Promise.allSettled([
           apiRequest<Category[]>('/categories'),
           apiRequest<Service[]>('/services'),
           apiRequest<User[]>('/users'),
         ]);
-        if (catRes.success && catRes.data) setCategories(catRes.data);
-        if (srvRes.success && srvRes.data) setServices(srvRes.data);
-        if (userRes.success && userRes.data) {
-          setTechnicians(userRes.data.filter((u) => u.role === 'technician'));
+        if (catRes.status === 'fulfilled' && catRes.value.success && catRes.value.data) {
+          setCategories(catRes.value.data);
+        }
+        if (srvRes.status === 'fulfilled' && srvRes.value.success && srvRes.value.data) {
+          setServices(srvRes.value.data);
+        }
+        if (userRes.status === 'fulfilled' && userRes.value.success && userRes.value.data) {
+          setTechnicians(userRes.value.data.filter((u) => u.role === 'technician'));
         }
       } catch (err) {
         console.error('Error fetching metadata:', err);

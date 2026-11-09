@@ -5,8 +5,8 @@ async function migrate() {
   console.log('🔄 Checking and applying full database schema migration...');
   try {
     await ensureDatabaseReady(true);
-    const columns = await client<Array<{ column_name: string; data_type: string; is_nullable: string }>>`
-      SELECT column_name, data_type, is_nullable 
+    const columns = await client<Array<{ column_name: string; data_type: string }>>`
+      SELECT column_name, data_type 
       FROM information_schema.columns 
       WHERE table_name = 'inbox_messages'
       ORDER BY ordinal_position;

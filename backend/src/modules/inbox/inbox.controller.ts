@@ -218,9 +218,55 @@ export async function getAllInboxMessages(req: Request, res: Response): Promise<
       .leftJoin(users, eq(inboxMessages.technician_id, users.u_id))
       .orderBy(desc(inboxMessages.created_at));
 
-    const result = conditions.length > 0
-      ? await query.where(and(...conditions))
-      : await query;
+    let result;
+    try {
+      result = conditions.length > 0
+        ? await query.where(and(...conditions))
+        : await query;
+    } catch (_queryErr) {
+      await ensureDatabaseReady(true);
+      try {
+        result = conditions.length > 0
+          ? await query.where(and(...conditions))
+          : await query;
+      } catch (_fallbackErr) {
+        const legacyQuery = db
+          .select({
+            cm_id: inboxMessages.cm_id,
+            service_id: inboxMessages.service_id,
+            service_name: services.name,
+            service_price: sql<number | null>`coalesce(${inboxMessages.final_price}, ${services.price})`,
+            final_price: inboxMessages.final_price,
+            completed_at: inboxMessages.completed_at,
+            service_image: services.service_image,
+            category_id: categories.cg_id,
+            category_name: categories.cg_name,
+            technician_id: inboxMessages.technician_id,
+            technician_name: users.u_name,
+            technician_surname: users.u_surname,
+            cm_username: inboxMessages.cm_username,
+            cm_cel: inboxMessages.cm_cel,
+            cm_email: inboxMessages.cm_email,
+            cm_symptom: inboxMessages.cm_symptom,
+            cm_image: inboxMessages.cm_image,
+            promo_code: sql<string | null>`null`,
+            discount_percent: sql<number | null>`0`,
+            is_read: inboxMessages.is_read,
+            repair_status: inboxMessages.repair_status,
+            comment: inboxMessages.comment,
+            created_at: inboxMessages.created_at,
+          })
+          .from(inboxMessages)
+          .leftJoin(services, eq(inboxMessages.service_id, services.id))
+          .leftJoin(categories, eq(services.cg_id, categories.cg_id))
+          .leftJoin(users, eq(inboxMessages.technician_id, users.u_id))
+          .orderBy(desc(inboxMessages.created_at));
+
+        result = conditions.length > 0
+          ? await legacyQuery.where(and(...conditions))
+          : await legacyQuery;
+      }
+    }
 
     res.json({
       success: true,
@@ -250,38 +296,76 @@ export async function getInboxMessageById(req: Request, res: Response): Promise<
       return;
     }
 
-    const [message] = await db
-      .select({
-        cm_id: inboxMessages.cm_id,
-        service_id: inboxMessages.service_id,
-        service_name: services.name,
-        service_price: sql<number | null>`coalesce(${inboxMessages.final_price}, ${services.price})`,
-        final_price: inboxMessages.final_price,
-        completed_at: inboxMessages.completed_at,
-        service_image: services.service_image,
-        category_id: categories.cg_id,
-        category_name: categories.cg_name,
-        technician_id: inboxMessages.technician_id,
-        technician_name: users.u_name,
-        technician_surname: users.u_surname,
-        cm_username: inboxMessages.cm_username,
-        cm_cel: inboxMessages.cm_cel,
-        cm_email: inboxMessages.cm_email,
-        cm_symptom: inboxMessages.cm_symptom,
-        cm_image: inboxMessages.cm_image,
-        promo_code: inboxMessages.promo_code,
-        discount_percent: inboxMessages.discount_percent,
-        is_read: inboxMessages.is_read,
-        repair_status: inboxMessages.repair_status,
-        comment: inboxMessages.comment,
-        created_at: inboxMessages.created_at,
-      })
-      .from(inboxMessages)
-      .leftJoin(services, eq(inboxMessages.service_id, services.id))
-      .leftJoin(categories, eq(services.cg_id, categories.cg_id))
-      .leftJoin(users, eq(inboxMessages.technician_id, users.u_id))
-      .where(eq(inboxMessages.cm_id, id))
-      .limit(1);
+    let message;
+    try {
+      const [row] = await db
+        .select({
+          cm_id: inboxMessages.cm_id,
+          service_id: inboxMessages.service_id,
+          service_name: services.name,
+          service_price: sql<number | null>`coalesce(${inboxMessages.final_price}, ${services.price})`,
+          final_price: inboxMessages.final_price,
+          completed_at: inboxMessages.completed_at,
+          service_image: services.service_image,
+          category_id: categories.cg_id,
+          category_name: categories.cg_name,
+          technician_id: inboxMessages.technician_id,
+          technician_name: users.u_name,
+          technician_surname: users.u_surname,
+          cm_username: inboxMessages.cm_username,
+          cm_cel: inboxMessages.cm_cel,
+          cm_email: inboxMessages.cm_email,
+          cm_symptom: inboxMessages.cm_symptom,
+          cm_image: inboxMessages.cm_image,
+          promo_code: inboxMessages.promo_code,
+          discount_percent: inboxMessages.discount_percent,
+          is_read: inboxMessages.is_read,
+          repair_status: inboxMessages.repair_status,
+          comment: inboxMessages.comment,
+          created_at: inboxMessages.created_at,
+        })
+        .from(inboxMessages)
+        .leftJoin(services, eq(inboxMessages.service_id, services.id))
+        .leftJoin(categories, eq(services.cg_id, categories.cg_id))
+        .leftJoin(users, eq(inboxMessages.technician_id, users.u_id))
+        .where(eq(inboxMessages.cm_id, id))
+        .limit(1);
+      message = row;
+    } catch (_err) {
+      const [legacyRow] = await db
+        .select({
+          cm_id: inboxMessages.cm_id,
+          service_id: inboxMessages.service_id,
+          service_name: services.name,
+          service_price: sql<number | null>`coalesce(${inboxMessages.final_price}, ${services.price})`,
+          final_price: inboxMessages.final_price,
+          completed_at: inboxMessages.completed_at,
+          service_image: services.service_image,
+          category_id: categories.cg_id,
+          category_name: categories.cg_name,
+          technician_id: inboxMessages.technician_id,
+          technician_name: users.u_name,
+          technician_surname: users.u_surname,
+          cm_username: inboxMessages.cm_username,
+          cm_cel: inboxMessages.cm_cel,
+          cm_email: inboxMessages.cm_email,
+          cm_symptom: inboxMessages.cm_symptom,
+          cm_image: inboxMessages.cm_image,
+          promo_code: sql<string | null>`null`,
+          discount_percent: sql<number | null>`0`,
+          is_read: inboxMessages.is_read,
+          repair_status: inboxMessages.repair_status,
+          comment: inboxMessages.comment,
+          created_at: inboxMessages.created_at,
+        })
+        .from(inboxMessages)
+        .leftJoin(services, eq(inboxMessages.service_id, services.id))
+        .leftJoin(categories, eq(services.cg_id, categories.cg_id))
+        .leftJoin(users, eq(inboxMessages.technician_id, users.u_id))
+        .where(eq(inboxMessages.cm_id, id))
+        .limit(1);
+      message = legacyRow;
+    }
 
     if (!message) {
       res.status(404).json({ success: false, message: 'ไม่พบข้อความแจ้งซ่อมนี้' });

@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
 import { useService } from '../../context/ServiceContext';
-import type { Category, InboxMessage, User } from '../../types';
+import type { Category, DashboardData, InboxMessage, User } from '../../types';
 import { ImageLightbox } from '../../components/ui/ImageLightbox';
 
 export const AdminHistory: React.FC = () => {
@@ -34,6 +34,7 @@ export const AdminHistory: React.FC = () => {
   const [technicians, setTechnicians] = useState<User[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<string>('');
   const [flashKey, setFlashKey] = useState<number>(0);
 
   // Filters
@@ -52,30 +53,120 @@ export const AdminHistory: React.FC = () => {
     } else {
       setLoading(true);
     }
+    setLoadError('');
+
     try {
-      const [msgRes, catRes, userRes] = await Promise.all([
+      // ใช้ Promise.allSettled และดึงข้อมูลทั้งจาก /inbox, /categories, /users และ /dashboard (เป็น Fallback เสริม)
+      const [msgResult, catResult, userResult, dashResult] = await Promise.allSettled([
         apiRequest<InboxMessage[]>('/inbox'),
         apiRequest<Category[]>('/categories'),
         apiRequest<User[]>('/users'),
+        apiRequest<DashboardData>('/dashboard', { params: { period: 'all' } }),
       ]);
 
-      if (msgRes.success && msgRes.data) {
-        setAllMessages(msgRes.data);
+      const dashData =
+        dashResult.status === 'fulfilled' && dashResult.value.success && dashResult.value.data
+          ? dashResult.value.data
+          : null;
+
+      let loadedMessages: InboxMessage[] = [];
+      if (msgResult.status === 'fulfilled' && msgResult.value.success && msgResult.value.data) {
+        loadedMessages = msgResult.value.data;
+      } else if (dashData?.technicianPerformance) {
+        // Fallback: หาก /inbox มีปัญหา ให้รวมรายการงานจาก technicianPerformance ใน /dashboard ทันที
+        const fallbackJobs: InboxMessage[] = [];
+        for (const tech of dashData.technicianPerformance) {
+          for (const j of tech.jobs || []) {
+            fallbackJobs.push({
+              cm_id: j.cm_id,
+              service_id: j.service_id,
+              service_name: j.service_name,
+              service_price: j.service_price,
+              final_price: j.service_price,
+              completed_at: j.completed_at,
+              technician_id: j.technician_id,
+              technician_name: tech.u_name,
+              technician_surname: tech.u_surname,
+              cm_username: j.cm_username,
+              cm_cel: j.cm_cel,
+              cm_email: '-',
+              cm_symptom: j.cm_symptom,
+              cm_image: null,
+              is_read: true,
+              repair_status: j.repair_status,
+              comment: null,
+              created_at: j.created_at,
+            });
+          }
+        }
+        loadedMessages = fallbackJobs;
+      } else if (msgResult.status === 'rejected') {
+        const reason =
+          msgResult.reason instanceof Error
+            ? msgResult.reason.message
+            : 'ไม่สามารถดึงรายการประวัติงานซ่อมได้';
+        setLoadError(reason);
       }
-      if (catRes.success && catRes.data) {
-        setCategories(catRes.data);
+
+      setAllMessages(loadedMessages);
+
+      if (catResult.status === 'fulfilled' && catResult.value.success && catResult.value.data) {
+        setCategories(catResult.value.data);
       }
-      if (userRes.success && userRes.data) {
-        setTechnicians(userRes.data.filter((u) => u.role === 'technician'));
+
+      const techMap = new Map<number, User>();
+      if (userResult.status === 'fulfilled' && userResult.value.success && userResult.value.data) {
+        for (const u of userResult.value.data) {
+          if (u.role === 'technician') {
+            techMap.set(u.u_id, u);
+          }
+        }
       }
+
+      // เสริมรายชื่อช่างจาก /dashboard (technicianPerformance)
+      if (dashData?.technicianPerformance) {
+        for (const t of dashData.technicianPerformance) {
+          if (!techMap.has(t.u_id)) {
+            techMap.set(t.u_id, {
+              u_id: t.u_id,
+              username: t.username,
+              u_name: t.u_name,
+              u_surname: t.u_surname,
+              role: 'technician',
+              cel: t.cel,
+              email: t.email,
+            });
+          }
+        }
+      }
+
+      // เสริมรายชื่อช่างจากข้อมูลใบงานจริง (ป้องกันกรณีข้อมูลช่างผูกอยู่ในใบงานแต่ดึงรายชื่อแยกไม่สำเร็จ)
+      for (const m of loadedMessages) {
+        if (m.technician_id && m.technician_name && !techMap.has(m.technician_id)) {
+          techMap.set(m.technician_id, {
+            u_id: m.technician_id,
+            username: `tech_${m.technician_id}`,
+            u_name: m.technician_name,
+            u_surname: m.technician_surname || '',
+            role: 'technician',
+            cel: '-',
+            email: '-',
+          });
+        }
+      }
+
+      setTechnicians(Array.from(techMap.values()));
+
       if (isManualRefresh) {
         setFlashKey((prev) => prev + 1);
         showToast('รีเฟรชข้อมูลประวัติการซ่อมล่าสุดเรียบร้อยแล้ว');
       }
     } catch (err) {
       console.error('Error loading repair history:', err);
+      const message = err instanceof Error ? err.message : 'ไม่สามารถโหลดข้อมูลประวัติการซ่อมได้';
+      setLoadError(message);
       if (isManualRefresh) {
-        showToast('ไม่สามารถรีเฟรชข้อมูลได้', 'error');
+        showToast(message, 'error');
       }
     } finally {
       setLoading(false);
@@ -113,7 +204,7 @@ export const AdminHistory: React.FC = () => {
       );
 
       const totalRevenue = techCompleted.reduce(
-        (sum, m) => sum + (m.final_price ?? m.service_price ?? 0),
+        (sum, m) => sum + Number(m.final_price ?? m.service_price ?? 0),
         0
       );
 
@@ -182,13 +273,13 @@ export const AdminHistory: React.FC = () => {
 
   const totalPermanentRevenue = useMemo(
     () =>
-      completedMessages.reduce((sum, m) => sum + (m.final_price ?? m.service_price ?? 0), 0),
+      completedMessages.reduce((sum, m) => sum + Number(m.final_price ?? m.service_price ?? 0), 0),
     [completedMessages]
   );
 
   const filteredRevenue = useMemo(
     () =>
-      filteredHistory.reduce((sum, m) => sum + (m.final_price ?? m.service_price ?? 0), 0),
+      filteredHistory.reduce((sum, m) => sum + Number(m.final_price ?? m.service_price ?? 0), 0),
     [filteredHistory]
   );
 
@@ -240,6 +331,22 @@ export const AdminHistory: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Error Banner if API failed */}
+      {loadError && (
+        <div className="p-4 rounded-2xl bg-red-950/60 border border-red-800 text-red-200 text-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>{loadError}</span>
+          </div>
+          <button
+            onClick={() => fetchData(true)}
+            className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold cursor-pointer shrink-0"
+          >
+            ลองโหลดใหม่
+          </button>
+        </div>
+      )}
 
       {/* 1. REVENUE & COMPLETION SUMMARY */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

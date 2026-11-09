@@ -42,7 +42,7 @@ export async function ensureDatabaseReady(force: boolean = false): Promise<void>
   if (!schemaInitPromise || force) {
     schemaInitPromise = (async () => {
       const ddlStatements = [
-        `ALTER TYPE "repair_status" ADD VALUE IF NOT EXISTS 'in_progress'`,
+        `DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'repair_status') THEN ALTER TYPE "repair_status" ADD VALUE IF NOT EXISTS 'in_progress'; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$`,
         `ALTER TABLE "inbox_messages" ADD COLUMN IF NOT EXISTS "technician_id" integer REFERENCES "users"("u_id") ON DELETE SET NULL`,
         `ALTER TABLE "inbox_messages" ADD COLUMN IF NOT EXISTS "final_price" integer`,
         `ALTER TABLE "inbox_messages" ADD COLUMN IF NOT EXISTS "completed_at" timestamp`,
