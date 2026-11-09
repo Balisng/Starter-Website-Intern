@@ -1,7 +1,8 @@
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { Request, Response } from 'express';
-import { db } from '../../config/db';
+import { db, ensureDatabaseReady } from '../../config/db';
 import { categories, inboxMessages, services, users } from '../../db/schema';
+import { resolveControllerError } from '../../middlewares/error.middleware';
 
 /**
  * GET /api/dashboard
@@ -11,6 +12,7 @@ import { categories, inboxMessages, services, users } from '../../db/schema';
  */
 export async function getDashboardStats(req: Request, res: Response): Promise<void> {
   try {
+    await ensureDatabaseReady();
     const period = (req.query.period as string) || 'all'; // 'all' | 'weekly' | 'monthly'
     const now = new Date();
 
@@ -217,9 +219,10 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
     });
   } catch (error) {
     console.error('Error generating dashboard stats:', error);
-    res.status(500).json({
+    const resolved = resolveControllerError(error, 'ไม่สามารถคำนวณสถิติ Dashboard ได้');
+    res.status(resolved.status).json({
       success: false,
-      message: 'เกิดข้อผิดพลาดในการคำนวณสถิติ Dashboard',
+      message: resolved.message,
     });
   }
 }

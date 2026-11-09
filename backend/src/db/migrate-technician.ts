@@ -1,21 +1,20 @@
 import 'dotenv/config';
-import { client } from '../config/db';
+import { client, ensureDatabaseReady } from '../config/db';
 
 async function migrate() {
-  console.log('🔄 Checking and applying technician_id column migration...');
+  console.log('🔄 Checking and applying full database schema migration...');
   try {
-    await client`
-      ALTER TABLE "inbox_messages" 
-      ADD COLUMN IF NOT EXISTS "technician_id" integer REFERENCES "users"("u_id") ON DELETE SET NULL;
-    `;
-    console.log('✅ Column "technician_id" added to "inbox_messages" successfully (or already exists)!');
-
+    await ensureDatabaseReady(true);
     const columns = await client<Array<{ column_name: string; data_type: string; is_nullable: string }>>`
       SELECT column_name, data_type, is_nullable 
       FROM information_schema.columns 
-      WHERE table_name = 'inbox_messages';
+      WHERE table_name = 'inbox_messages'
+      ORDER BY ordinal_position;
     `;
-    console.log('📋 Current inbox_messages columns:', columns.map((c) => `${c.column_name} (${c.data_type}, nullable: ${c.is_nullable})`));
+    console.log(
+      '✅ Current inbox_messages columns:',
+      columns.map((c) => `${c.column_name} (${c.data_type})`).join(', ')
+    );
   } catch (err) {
     console.error('❌ Migration failed:', err);
     process.exit(1);

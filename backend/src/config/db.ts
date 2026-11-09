@@ -27,59 +27,52 @@ export const client = postgres(connectionString, {
 // Create Drizzle ORM instance with typed schema
 export const db = drizzle(client, { schema });
 
+let schemaReady = false;
 let schemaInitPromise: Promise<void> | null = null;
 
 /**
  * ตรวจสอบและอัปเดตคอลัมน์ที่จำเป็นแบบอัตโนมัติ (Idempotent Auto-Migration)
- * ป้องกันปัญหาฐานข้อมูลบน Local หรือ Vercel ขาดคอลัมน์ใหม่ เช่น promo_code, discount_percent, final_price
+ * แยกแต่ละคำสั่งเป็น Top-level SQL ใน try/catch แยกกัน เพื่อไม่ให้คำสั่งใดคำสั่งหนึ่งขัดจังหวะคำสั่งถัดไป
  */
-export function ensureDatabaseReady(): Promise<void> {
-  if (!schemaInitPromise) {
+export async function ensureDatabaseReady(force: boolean = false): Promise<void> {
+  if (schemaReady && !force) {
+    return;
+  }
+
+  if (!schemaInitPromise || force) {
     schemaInitPromise = (async () => {
-      try {
-        await client`
-          DO $$
-          BEGIN
-            IF NOT EXISTS (
-              SELECT 1 FROM pg_type t
-              JOIN pg_enum e ON t.oid = e.enumtypid
-              WHERE t.typname = 'repair_status' AND e.enumlabel = 'in_progress'
-            ) THEN
-              ALTER TYPE "repair_status" ADD VALUE 'in_progress';
-            END IF;
-          EXCEPTION
-            WHEN duplicate_object THEN NULL;
-          END $$;
-        `;
+      const ddlStatements = [
+        `ALTER TYPE "repair_status" ADD VALUE IF NOT EXISTS 'in_progress'`,
+        `ALTER TABLE "inbox_messages" ADD COLUMN IF NOT EXISTS "technician_id" integer REFERENCES "users"("u_id") ON DELETE SET NULL`,
+        `ALTER TABLE "inbox_messages" ADD COLUMN IF NOT EXISTS "final_price" integer`,
+        `ALTER TABLE "inbox_messages" ADD COLUMN IF NOT EXISTS "completed_at" timestamp`,
+        `ALTER TABLE "inbox_messages" ADD COLUMN IF NOT EXISTS "promo_code" varchar(50)`,
+        `ALTER TABLE "inbox_messages" ADD COLUMN IF NOT EXISTS "discount_percent" integer DEFAULT 0`,
+        `SELECT setval(pg_get_serial_sequence('inbox_messages', 'cm_id'), COALESCE((SELECT MAX(cm_id) FROM inbox_messages), 0) + 1, false)`,
+      ];
 
-        await client`
-          ALTER TABLE "inbox_messages"
-            ADD COLUMN IF NOT EXISTS "technician_id" integer REFERENCES "users"("u_id") ON DELETE SET NULL,
-            ADD COLUMN IF NOT EXISTS "final_price" integer,
-            ADD COLUMN IF NOT EXISTS "completed_at" timestamp,
-            ADD COLUMN IF NOT EXISTS "promo_code" varchar(50),
-            ADD COLUMN IF NOT EXISTS "discount_percent" integer DEFAULT 0;
-        `;
+      let allColumnsAdded = true;
+      for (const stmt of ddlStatements) {
+        try {
+          await client.unsafe(stmt);
+        } catch (err) {
+          console.warn(`⚠️ Auto-schema statement warning (${stmt.slice(0, 50)}...):`, err);
+          if (stmt.includes('ADD COLUMN')) {
+            allColumnsAdded = false;
+          }
+        }
+      }
 
-        // ซิงค์ลำดับ Auto-increment Sequence ให้ตรงกับข้อมูลล่าสุดเสมอ ป้องกัน Primary Key ชนกัน
-        await client`
-          SELECT setval(
-            pg_get_serial_sequence('inbox_messages', 'cm_id'),
-            COALESCE((SELECT MAX(cm_id) FROM inbox_messages), 0) + 1,
-            false
-          );
-        `;
-      } catch (err) {
-        console.warn('⚠️ Auto-schema check warning:', err);
+      if (allColumnsAdded) {
+        schemaReady = true;
+      } else {
         schemaInitPromise = null;
       }
     })();
   }
+
   return schemaInitPromise;
 }
-
-// Trigger schema check in background on startup
-void ensureDatabaseReady();
 
 // Helper function to test DB connectivity
 export async function testDbConnection(): Promise<boolean> {

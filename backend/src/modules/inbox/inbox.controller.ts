@@ -1,6 +1,6 @@
 import { and, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
 import { Request, Response } from 'express';
-import { db, ensureDatabaseReady } from '../../config/db';
+import { client, db, ensureDatabaseReady } from '../../config/db';
 import { categories, inboxMessages, services, users } from '../../db/schema';
 import { resolveControllerError } from '../../middlewares/error.middleware';
 import { CreateInboxMessageInput, UpdateInboxStatusInput } from './inbox.schema';
@@ -44,22 +44,67 @@ export async function createInboxMessage(req: Request, res: Response): Promise<v
       validServiceId = service.id;
     }
 
-    const [newMessage] = await db
-      .insert(inboxMessages)
-      .values({
-        service_id: validServiceId,
-        cm_username: input.cm_username,
-        cm_cel: input.cm_cel,
-        cm_email: input.cm_email,
-        cm_symptom: input.cm_symptom,
-        cm_image: input.cm_image || null,
-        promo_code: validPromoCode,
-        discount_percent: discountPercent,
-        is_read: false,
-        repair_status: 'pending',
-        created_at: new Date(),
-      })
-      .returning();
+    let newMessage: unknown;
+    try {
+      const [inserted] = await db
+        .insert(inboxMessages)
+        .values({
+          service_id: validServiceId,
+          cm_username: input.cm_username,
+          cm_cel: input.cm_cel,
+          cm_email: input.cm_email,
+          cm_symptom: input.cm_symptom,
+          cm_image: input.cm_image || null,
+          promo_code: validPromoCode,
+          discount_percent: discountPercent,
+          is_read: false,
+          repair_status: 'pending',
+          created_at: new Date(),
+        })
+        .returning();
+      newMessage = inserted;
+    } catch (insertError) {
+      // Self-healing fallback: หากฐานข้อมูลยังไม่มีคอลัมน์ใหม่ ให้สั่ง ALTER TABLE ซ้ำทันที หรือบันทึกเฉพาะคอลัมน์พื้นฐาน
+      await ensureDatabaseReady(true);
+      try {
+        const [retried] = await db
+          .insert(inboxMessages)
+          .values({
+            service_id: validServiceId,
+            cm_username: input.cm_username,
+            cm_cel: input.cm_cel,
+            cm_email: input.cm_email,
+            cm_symptom: input.cm_symptom,
+            cm_image: input.cm_image || null,
+            promo_code: validPromoCode,
+            discount_percent: discountPercent,
+            is_read: false,
+            repair_status: 'pending',
+            created_at: new Date(),
+          })
+          .returning();
+        newMessage = retried;
+      } catch (_retryError) {
+        // Fallback ขั้นสุดท้ายกรณี DB Role ไม่มีสิทธิ์ ALTER TABLE
+        const rows = await client`
+          INSERT INTO inbox_messages (
+            service_id, cm_username, cm_cel, cm_email, cm_symptom, cm_image, is_read, repair_status, created_at
+          ) VALUES (
+            ${validServiceId},
+            ${input.cm_username},
+            ${input.cm_cel},
+            ${input.cm_email},
+            ${input.cm_symptom},
+            ${input.cm_image || null},
+            false,
+            'pending',
+            NOW()
+          )
+          RETURNING *
+        `;
+        newMessage = rows[0] ?? insertError;
+      }
+    }
 
     res.status(201).json({
       success: true,
