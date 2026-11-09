@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Users,
   Plus,
@@ -33,6 +33,23 @@ export const AdminUsers: React.FC = () => {
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [formSubmitting, setFormSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const modalTopRef = useRef<HTMLDivElement>(null);
+
+  const scrollToModalTop = () => {
+    setTimeout(() => {
+      modalTopRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+  };
+
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   // Form State
   const [form, setForm] = useState({
@@ -91,6 +108,7 @@ export const AdminUsers: React.FC = () => {
       email: '',
     });
     setFormError('');
+    setFieldErrors({});
     setModalOpen(true);
   };
 
@@ -106,6 +124,7 @@ export const AdminUsers: React.FC = () => {
       email: target.email,
     });
     setFormError('');
+    setFieldErrors({});
     setModalOpen(true);
   };
 
@@ -118,54 +137,80 @@ export const AdminUsers: React.FC = () => {
       formatted = `${raw.slice(0, 3)}-${raw.slice(3)}`;
     }
     setForm((prev) => ({ ...prev, cel: formatted }));
+    clearFieldError('cel');
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
-    if (!form.u_name.trim() || !form.u_surname.trim()) {
-      setFormError('กรุณากรอกชื่อจริงและนามสกุล');
-      return;
-    }
+    const newFieldErrors: Record<string, string> = {};
+    const errorItems: string[] = [];
 
     if (!editingUser) {
-      if (!form.username.trim() || form.username.trim().length < 3) {
-        setFormError('ชื่อผู้ใช้ (Username) ต้องมีอย่างน้อย 3 ตัวอักษร');
-        return;
+      const trimmedUsername = form.username.trim();
+      if (!trimmedUsername) {
+        newFieldErrors.username = 'กรุณากรอกชื่อผู้ใช้ (Username)';
+        errorItems.push('[ชื่อผู้ใช้ (Username)]: กรุณากรอกชื่อผู้ใช้');
+      } else if (trimmedUsername.length < 3) {
+        newFieldErrors.username = 'ต้องมีอย่างน้อย 3 ตัวอักษร';
+        errorItems.push('[ชื่อผู้ใช้ (Username)]: ต้องมีอย่างน้อย 3 ตัวอักษร');
+      } else if (trimmedUsername.length > 50) {
+        newFieldErrors.username = 'ต้องไม่เกิน 50 ตัวอักษร';
+        errorItems.push('[ชื่อผู้ใช้ (Username)]: ต้องไม่เกิน 50 ตัวอักษร');
       }
-      if (!form.pwd || form.pwd.length < 4) {
-        setFormError('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร');
-        return;
+
+      if (!form.pwd) {
+        newFieldErrors.pwd = 'กรุณากรอกรหัสผ่าน';
+        errorItems.push('[รหัสผ่าน]: กรุณากรอกรหัสผ่าน');
+      } else if (form.pwd.length < 4) {
+        newFieldErrors.pwd = 'รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร';
+        errorItems.push('[รหัสผ่าน]: ต้องมีอย่างน้อย 4 ตัวอักษร');
       }
     } else if (form.pwd && form.pwd.length < 4) {
-      setFormError('รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร');
-      return;
+      newFieldErrors.pwd = 'รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร';
+      errorItems.push('[รหัสผ่านใหม่]: ต้องมีอย่างน้อย 4 ตัวอักษร');
+    }
+
+    if (!form.u_name.trim()) {
+      newFieldErrors.u_name = 'กรุณากรอกชื่อจริง';
+      errorItems.push('[ชื่อจริง]: กรุณากรอกชื่อจริง');
+    }
+
+    if (!form.u_surname.trim()) {
+      newFieldErrors.u_surname = 'กรุณากรอกนามสกุล';
+      errorItems.push('[นามสกุล]: กรุณากรอกนามสกุล');
     }
 
     const cleanCel = form.cel.replace(/\D/g, '');
     if (!cleanCel) {
-      setFormError('กรุณากรอกเบอร์โทรศัพท์');
-      return;
-    }
-    if (!/^0[689]\d{8}$/.test(cleanCel)) {
-      setFormError('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (06x, 08x, 09x ครบ 10 หลัก)');
-      return;
+      newFieldErrors.cel = 'กรุณากรอกเบอร์โทรศัพท์';
+      errorItems.push('[เบอร์โทรศัพท์]: กรุณากรอกเบอร์โทรศัพท์');
+    } else if (!/^0[689]\d{8}$/.test(cleanCel)) {
+      newFieldErrors.cel = 'ต้องเป็นเบอร์มือถือไทย 10 หลัก (06x, 08x, 09x)';
+      errorItems.push('[เบอร์โทรศัพท์]: ต้องเป็นเบอร์มือถือไทย 10 หลัก (ขึ้นต้นด้วย 06, 08 หรือ 09)');
     }
 
     const emailRegex =
       /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9-]+\.)*(gmail\.com|hotmail\.com|outlook\.com|yahoo\.com|icloud\.com|[a-zA-Z0-9-]+\.(com|co\.th|ac\.th|or\.th|go\.th))$/i;
     if (!form.email.trim()) {
-      setFormError('กรุณากรอกอีเมล');
-      return;
-    }
-    if (!emailRegex.test(form.email.trim())) {
-      setFormError(
-        'รูปแบบอีเมลไม่ถูกต้อง (อนุญาตเฉพาะ @gmail.com, @hotmail.com, @outlook.com, @yahoo.com, @icloud.com หรือโดเมนมาตรฐาน .com, .co.th, .ac.th)'
+      newFieldErrors.email = 'กรุณากรอกอีเมล';
+      errorItems.push('[อีเมล]: กรุณากรอกอีเมล');
+    } else if (!emailRegex.test(form.email.trim())) {
+      newFieldErrors.email = 'รูปแบบอีเมลไม่ถูกต้อง (เช่น @gmail.com, @hotmail.com, @outlook.com)';
+      errorItems.push(
+        '[อีเมล]: รูปแบบอีเมลไม่ถูกต้อง (อนุญาตเฉพาะ @gmail.com, @hotmail.com, @outlook.com, @yahoo.com, @icloud.com หรือโดเมนมาตรฐาน .com, .co.th, .ac.th)'
       );
+    }
+
+    if (errorItems.length > 0) {
+      setFieldErrors(newFieldErrors);
+      setFormError(`กรุณาตรวจสอบข้อมูล: ${errorItems.join(' | ')}`);
+      scrollToModalTop();
       return;
     }
 
+    setFieldErrors({});
     setFormSubmitting(true);
     try {
       if (editingUser) {
@@ -191,6 +236,7 @@ export const AdminUsers: React.FC = () => {
           fetchUsers(false);
         } else {
           setFormError(res.message || 'แก้ไขข้อมูลผู้ใช้ไม่สำเร็จ');
+          scrollToModalTop();
         }
       } else {
         const res = await apiRequest('/users', {
@@ -212,12 +258,17 @@ export const AdminUsers: React.FC = () => {
           fetchUsers(false);
         } else {
           setFormError(res.message || 'เพิ่มผู้ใช้ไม่สำเร็จ');
+          scrollToModalTop();
         }
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+      if (message.includes('Username')) {
+        setFieldErrors({ username: 'ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาเลือกชื่ออื่น' });
+      }
       setFormError(message);
       showToast(message, 'error');
+      scrollToModalTop();
     } finally {
       setFormSubmitting(false);
     }
@@ -530,6 +581,7 @@ export const AdminUsers: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop"
         >
           <div
+            ref={modalTopRef}
             onClick={(e) => e.stopPropagation()}
             className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative animate-modal max-h-[90vh] overflow-y-auto"
           >
@@ -548,13 +600,26 @@ export const AdminUsers: React.FC = () => {
             </div>
 
             {formError && (
-              <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{formError}</span>
+              <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+                <div className="space-y-1">
+                  {formError.includes(' | ') ? (
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {formError
+                        .replace(/^กรุณาตรวจสอบข้อมูล:\s*/, '')
+                        .split(' | ')
+                        .map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                    </ul>
+                  ) : (
+                    <span>{formError}</span>
+                  )}
+                </div>
               </div>
             )}
 
-            <form onSubmit={handleFormSubmit} className="space-y-3.5 text-xs">
+            <form onSubmit={handleFormSubmit} noValidate className="space-y-3.5 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-300">ชื่อผู้ใช้ (Username) *</label>
@@ -563,12 +628,22 @@ export const AdminUsers: React.FC = () => {
                     required
                     disabled={!!editingUser}
                     value={form.username}
-                    onChange={(e) => setForm({ ...form, username: e.target.value })}
+                    onChange={(e) => {
+                      setForm({ ...form, username: e.target.value });
+                      clearFieldError('username');
+                    }}
                     placeholder="เช่น tech_somchai"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 disabled:opacity-50 disabled:bg-slate-900 focus:outline-none focus:border-sky-500"
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 disabled:opacity-50 disabled:bg-slate-900 focus:outline-none ${
+                      fieldErrors.username
+                        ? 'border-red-500 focus:border-red-400'
+                        : 'border-slate-800 focus:border-sky-500'
+                    }`}
                   />
                   {editingUser && (
                     <span className="text-[10px] text-slate-500">Username ไม่สามารถเปลี่ยนได้</span>
+                  )}
+                  {fieldErrors.username && (
+                    <p className="text-[11px] text-red-400 font-medium">{fieldErrors.username}</p>
                   )}
                 </div>
 
@@ -580,10 +655,20 @@ export const AdminUsers: React.FC = () => {
                     type="password"
                     required={!editingUser}
                     value={form.pwd}
-                    onChange={(e) => setForm({ ...form, pwd: e.target.value })}
+                    onChange={(e) => {
+                      setForm({ ...form, pwd: e.target.value });
+                      clearFieldError('pwd');
+                    }}
                     placeholder={editingUser ? 'กรอกเมื่อต้องการเปลี่ยน' : 'รหัสผ่านอย่างน้อย 4 ตัว'}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none ${
+                      fieldErrors.pwd
+                        ? 'border-red-500 focus:border-red-400'
+                        : 'border-slate-800 focus:border-sky-500'
+                    }`}
                   />
+                  {fieldErrors.pwd && (
+                    <p className="text-[11px] text-red-400 font-medium">{fieldErrors.pwd}</p>
+                  )}
                 </div>
               </div>
 
@@ -594,10 +679,20 @@ export const AdminUsers: React.FC = () => {
                     type="text"
                     required
                     value={form.u_name}
-                    onChange={(e) => setForm({ ...form, u_name: e.target.value })}
+                    onChange={(e) => {
+                      setForm({ ...form, u_name: e.target.value });
+                      clearFieldError('u_name');
+                    }}
                     placeholder="เช่น สมชาย"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none ${
+                      fieldErrors.u_name
+                        ? 'border-red-500 focus:border-red-400'
+                        : 'border-slate-800 focus:border-sky-500'
+                    }`}
                   />
+                  {fieldErrors.u_name && (
+                    <p className="text-[11px] text-red-400 font-medium">{fieldErrors.u_name}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -606,10 +701,20 @@ export const AdminUsers: React.FC = () => {
                     type="text"
                     required
                     value={form.u_surname}
-                    onChange={(e) => setForm({ ...form, u_surname: e.target.value })}
+                    onChange={(e) => {
+                      setForm({ ...form, u_surname: e.target.value });
+                      clearFieldError('u_surname');
+                    }}
                     placeholder="เช่น ช่างซ่อม"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none ${
+                      fieldErrors.u_surname
+                        ? 'border-red-500 focus:border-red-400'
+                        : 'border-slate-800 focus:border-sky-500'
+                    }`}
                   />
+                  {fieldErrors.u_surname && (
+                    <p className="text-[11px] text-red-400 font-medium">{fieldErrors.u_surname}</p>
+                  )}
                 </div>
               </div>
 
@@ -685,8 +790,15 @@ export const AdminUsers: React.FC = () => {
                     value={form.cel}
                     onChange={handlePhoneChange}
                     placeholder="0xx-xxx-xxxx"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none font-mono ${
+                      fieldErrors.cel
+                        ? 'border-red-500 focus:border-red-400'
+                        : 'border-slate-800 focus:border-sky-500'
+                    }`}
                   />
+                  {fieldErrors.cel && (
+                    <p className="text-[11px] text-red-400 font-medium">{fieldErrors.cel}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -695,10 +807,20 @@ export const AdminUsers: React.FC = () => {
                     type="email"
                     required
                     value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    onChange={(e) => {
+                      setForm({ ...form, email: e.target.value });
+                      clearFieldError('email');
+                    }}
                     placeholder="technician@gmail.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none ${
+                      fieldErrors.email
+                        ? 'border-red-500 focus:border-red-400'
+                        : 'border-slate-800 focus:border-sky-500'
+                    }`}
                   />
+                  {fieldErrors.email && (
+                    <p className="text-[11px] text-red-400 font-medium">{fieldErrors.email}</p>
+                  )}
                 </div>
               </div>
 

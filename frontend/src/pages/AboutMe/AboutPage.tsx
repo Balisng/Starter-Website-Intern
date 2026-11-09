@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   MapPin,
@@ -55,6 +55,25 @@ export const AboutPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const formTopRef = useRef<HTMLDivElement>(null);
+
+  const scrollToFormTop = () => {
+    setTimeout(() => {
+      if (formTopRef.current) {
+        formTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
+  };
+
+  const clearFieldError = (fieldKey: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[fieldKey]) return prev;
+      const next = { ...prev };
+      delete next[fieldKey];
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (selectedService) {
@@ -118,6 +137,7 @@ export const AboutPage: React.FC = () => {
       formatted = `${raw.slice(0, 3)}-${raw.slice(3)}`;
     }
     setCmCel(formatted);
+    clearFieldError('cm_cel');
   };
 
   const handleServiceSelectChange = (val: string) => {
@@ -142,49 +162,82 @@ export const AboutPage: React.FC = () => {
     setSuccessMsg('');
     setErrorMsg('');
 
-    if (!cmUsername.trim() || cmUsername.trim().length < 2) {
-      setErrorMsg('กรุณากรอกชื่อของคุณ (อย่างน้อย 2 ตัวอักษร)');
-      return;
+    const newFieldErrors: Record<string, string> = {};
+    const errorItems: string[] = [];
+
+    const trimmedName = cmUsername.trim();
+    if (!trimmedName) {
+      newFieldErrors.cm_username = 'กรุณากรอกชื่อผู้ติดต่อ';
+      errorItems.push('[ชื่อผู้ติดต่อ]: กรุณากรอกชื่อผู้ติดต่อ');
+    } else if (trimmedName.length < 2) {
+      newFieldErrors.cm_username = 'ต้องมีอย่างน้อย 2 ตัวอักษร';
+      errorItems.push('[ชื่อผู้ติดต่อ]: ต้องมีอย่างน้อย 2 ตัวอักษร');
+    } else if (trimmedName.length > 100) {
+      newFieldErrors.cm_username = 'ต้องไม่เกิน 100 ตัวอักษร';
+      errorItems.push('[ชื่อผู้ติดต่อ]: ต้องไม่เกิน 100 ตัวอักษร');
     }
 
     const cleanPhone = cmCel.replace(/\D/g, '');
     if (!cleanPhone) {
-      setErrorMsg('กรุณากรอกเบอร์โทรศัพท์');
-      return;
-    }
-    if (!/^0[689]\d{8}$/.test(cleanPhone)) {
-      setErrorMsg('กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง (ขึ้นต้นด้วย 06, 08 หรือ 09 ครบ 10 หลัก)');
-      return;
+      newFieldErrors.cm_cel = 'กรุณากรอกเบอร์โทรศัพท์';
+      errorItems.push('[เบอร์โทรศัพท์]: กรุณากรอกเบอร์โทรศัพท์');
+    } else if (!/^0[689]\d{8}$/.test(cleanPhone)) {
+      newFieldErrors.cm_cel = 'ต้องเป็นเบอร์มือถือไทย 10 หลัก (ขึ้นต้นด้วย 06, 08 หรือ 09)';
+      errorItems.push('[เบอร์โทรศัพท์]: ต้องเป็นเบอร์มือถือไทย 10 หลัก (ขึ้นต้นด้วย 06, 08 หรือ 09)');
     }
 
     const emailRegex =
       /^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9-]+\.)*(gmail\.com|hotmail\.com|outlook\.com|yahoo\.com|icloud\.com|[a-zA-Z0-9-]+\.(com|co\.th|ac\.th|or\.th|go\.th))$/i;
-    if (!cmEmail.trim()) {
-      setErrorMsg('กรุณากรอกอีเมลสำหรับติดต่อกลับ');
-      return;
-    }
-    if (!emailRegex.test(cmEmail.trim())) {
-      setErrorMsg(
-        'รูปแบบอีเมลไม่ถูกต้อง (รองรับ @gmail.com, @hotmail.com, @outlook.com, @yahoo.com, @icloud.com หรือโดเมนมาตรฐาน .com, .co.th, .ac.th)'
+    const trimmedEmail = cmEmail.trim();
+    if (!trimmedEmail) {
+      newFieldErrors.cm_email = 'กรุณากรอกอีเมลติดต่อกลับ';
+      errorItems.push('[อีเมลติดต่อกลับ]: กรุณากรอกอีเมลติดต่อกลับ');
+    } else if (!emailRegex.test(trimmedEmail)) {
+      newFieldErrors.cm_email =
+        'รูปแบบอีเมลไม่ถูกต้อง (เช่น name@gmail.com, @hotmail.com, @outlook.com หรือโดเมน .com / .co.th)';
+      errorItems.push(
+        '[อีเมลติดต่อกลับ]: รูปแบบอีเมลไม่ถูกต้อง (รองรับ @gmail.com, @hotmail.com, @outlook.com, @yahoo.com, @icloud.com หรือโดเมนมาตรฐาน .com, .co.th, .ac.th)'
       );
+    }
+
+    const trimmedSymptom = cmSymptom.trim();
+    if (!trimmedSymptom) {
+      newFieldErrors.cm_symptom = 'กรุณาระบุรายละเอียดอาการเสียของอุปกรณ์';
+      errorItems.push('[รายละเอียดอาการเสีย]: กรุณาระบุอาการเสียของอุปกรณ์');
+    } else if (trimmedSymptom.length < 5) {
+      newFieldErrors.cm_symptom = 'ต้องระบุอาการเสียอย่างน้อย 5 ตัวอักษร';
+      errorItems.push('[รายละเอียดอาการเสีย]: ต้องระบุอาการเสียอย่างน้อย 5 ตัวอักษร');
+    }
+
+    const trimmedImage = cmImage.trim();
+    if (trimmedImage) {
+      if (trimmedImage.length > 255) {
+        newFieldErrors.cm_image = 'ลิงก์รูปภาพยาวเกินกำหนด (สูงสุดไม่เกิน 255 ตัวอักษร)';
+        errorItems.push('[ลิงก์รูปภาพอาการเสีย]: ลิงก์ยาวเกิน 255 ตัวอักษร กรุณาใช้ลิงก์ที่สั้นลง');
+      } else if (!/^https?:\/\/.+/i.test(trimmedImage)) {
+        newFieldErrors.cm_image = 'ลิงก์รูปภาพต้องขึ้นต้นด้วย http:// หรือ https://';
+        errorItems.push('[ลิงก์รูปภาพอาการเสีย]: รูปแบบ URL ไม่ถูกต้อง (ต้องขึ้นต้นด้วย http:// หรือ https://)');
+      }
+    }
+
+    if (errorItems.length > 0) {
+      setFieldErrors(newFieldErrors);
+      setErrorMsg(`กรุณาแก้ไขข้อมูลให้ถูกต้อง: ${errorItems.join(' | ')}`);
+      scrollToFormTop();
       return;
     }
 
-    if (!cmSymptom.trim() || cmSymptom.trim().length < 5) {
-      setErrorMsg('กรุณาระบุอาการเสียของอุปกรณ์อย่างน้อย 5 ตัวอักษร');
-      return;
-    }
-
+    setFieldErrors({});
     setSubmitting(true);
 
     try {
       const payload = {
         service_id: serviceId ? Number(serviceId) : null,
-        cm_username: cmUsername.trim(),
+        cm_username: trimmedName,
         cm_cel: cmCel.trim(),
-        cm_email: cmEmail.trim(),
-        cm_symptom: cmSymptom.trim(),
-        cm_image: cmImage.trim() ? cmImage.trim() : null,
+        cm_email: trimmedEmail,
+        cm_symptom: trimmedSymptom,
+        cm_image: trimmedImage ? trimmedImage : null,
         promo_code: appliedPromo || null,
       };
 
@@ -198,6 +251,7 @@ export const AboutPage: React.FC = () => {
           ? `ส่งข้อมูลแจ้งซ่อมเรียบร้อยแล้ว ได้รับสิทธิ์ส่วนลด 20% (โค้ด: ${appliedPromo}) ช่างจะติดต่อกลับเพื่อยืนยันรายละเอียดโดยเร็ว`
           : (res.message || 'ส่งข้อมูลแจ้งซ่อมเรียบร้อยแล้ว ช่างจะติดต่อกลับเพื่อยืนยันรายละเอียดโดยเร็ว');
         setSuccessMsg(msg);
+        setFieldErrors({});
         showToast('ส่งเรื่องแจ้งซ่อมเรียบร้อยแล้ว ช่างจะติดต่อกลับโดยเร็ว');
         setCmUsername('');
         setCmCel('');
@@ -209,14 +263,30 @@ export const AboutPage: React.FC = () => {
         setPromoCodeInput('');
         setPromoError('');
         clearSelectedService();
+        scrollToFormTop();
       } else {
-        setErrorMsg(res.message || 'ไม่สามารถส่งข้อความได้ กรุณาตรวจสอบข้อมูลอีกครั้ง');
-        showToast(res.message || 'ไม่สามารถส่งข้อมูลได้', 'error');
+        const serverMsg = res.message || 'ไม่สามารถส่งข้อความแจ้งซ่อมได้ กรุณาตรวจสอบข้อมูลอีกครั้ง';
+        setErrorMsg(serverMsg);
+        showToast(serverMsg, 'error');
+        scrollToFormTop();
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่อีกครั้ง';
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาตรวจสอบข้อมูลแล้วลองใหม่อีกครั้ง';
+      const serverFieldErrors: Record<string, string> = {};
+      if (message.includes('ชื่อผู้ติดต่อ')) serverFieldErrors.cm_username = message;
+      if (message.includes('เบอร์โทรศัพท์')) serverFieldErrors.cm_cel = message;
+      if (message.includes('อีเมล')) serverFieldErrors.cm_email = message;
+      if (message.includes('อาการเสีย')) serverFieldErrors.cm_symptom = message;
+      if (message.includes('ลิงก์รูปภาพ') || message.includes('URL')) serverFieldErrors.cm_image = message;
+      if (Object.keys(serverFieldErrors).length > 0) {
+        setFieldErrors(serverFieldErrors);
+      }
       setErrorMsg(message);
       showToast(message, 'error');
+      scrollToFormTop();
     } finally {
       setSubmitting(false);
     }
@@ -515,7 +585,7 @@ export const AboutPage: React.FC = () => {
           </div>
 
           {/* Right Panel: Clean Structured Form */}
-          <div className="lg:col-span-8 p-5 sm:p-8 space-y-5">
+          <div ref={formTopRef} className="lg:col-span-8 p-5 sm:p-8 space-y-5 scroll-mt-24">
             <div className="border-b border-slate-200 pb-3">
               <h3 className="text-base sm:text-lg font-extrabold text-slate-900">
                 กรอกรายละเอียดเพื่อแจ้งซ่อมอุปกรณ์
@@ -538,11 +608,30 @@ export const AboutPage: React.FC = () => {
             {errorMsg && (
               <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-start gap-2.5 animate-fade">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                <div className="text-xs font-medium">{errorMsg}</div>
+                <div className="text-xs font-medium space-y-1">
+                  {errorMsg.includes(' | ') ? (
+                    <>
+                      <p className="font-bold text-red-900">
+                        พบข้อมูลที่ไม่ถูกต้อง กรุณาตรวจสอบช่องที่มีกรอบสีแดง:
+                      </p>
+                      <ul className="list-disc list-inside space-y-0.5 text-red-800">
+                        {errorMsg
+                          .replace(/^กรุณาแก้ไขข้อมูลให้ถูกต้อง:\s*/, '')
+                          .replace(/^กรุณาตรวจสอบข้อมูล:\s*/, '')
+                          .split(' | ')
+                          .map((item, idx) => (
+                            <li key={idx}>{item}</li>
+                          ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <p>{errorMsg}</p>
+                  )}
+                </div>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+            <form onSubmit={handleSubmit} noValidate className="space-y-4 text-xs">
               {/* 1. Service Selection */}
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-800 flex items-center gap-1.5">
@@ -664,10 +753,20 @@ export const AboutPage: React.FC = () => {
                     type="text"
                     required
                     value={cmUsername}
-                    onChange={(e) => setCmUsername(e.target.value)}
+                    onChange={(e) => {
+                      setCmUsername(e.target.value);
+                      clearFieldError('cm_username');
+                    }}
                     placeholder="ชื่อ-นามสกุล หรือชื่อเล่น"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none transition-colors ${
+                      fieldErrors.cm_username
+                        ? 'bg-red-50/50 border-red-400 focus:border-red-600'
+                        : 'bg-slate-50 border-slate-200 focus:border-slate-900'
+                    }`}
                   />
+                  {fieldErrors.cm_username && (
+                    <p className="text-[11px] text-red-600 font-medium">{fieldErrors.cm_username}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -681,8 +780,15 @@ export const AboutPage: React.FC = () => {
                     value={cmCel}
                     onChange={handlePhoneChange}
                     placeholder="08x-xxx-xxxx"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors font-mono"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none transition-colors font-mono ${
+                      fieldErrors.cm_cel
+                        ? 'bg-red-50/50 border-red-400 focus:border-red-600'
+                        : 'bg-slate-50 border-slate-200 focus:border-slate-900'
+                    }`}
                   />
+                  {fieldErrors.cm_cel && (
+                    <p className="text-[11px] text-red-600 font-medium">{fieldErrors.cm_cel}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -694,10 +800,20 @@ export const AboutPage: React.FC = () => {
                     type="email"
                     required
                     value={cmEmail}
-                    onChange={(e) => setCmEmail(e.target.value)}
+                    onChange={(e) => {
+                      setCmEmail(e.target.value);
+                      clearFieldError('cm_email');
+                    }}
                     placeholder="name@gmail.com"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none transition-colors ${
+                      fieldErrors.cm_email
+                        ? 'bg-red-50/50 border-red-400 focus:border-red-600'
+                        : 'bg-slate-50 border-slate-200 focus:border-slate-900'
+                    }`}
                   />
+                  {fieldErrors.cm_email && (
+                    <p className="text-[11px] text-red-600 font-medium">{fieldErrors.cm_email}</p>
+                  )}
                 </div>
               </div>
 
@@ -711,10 +827,20 @@ export const AboutPage: React.FC = () => {
                   rows={4}
                   required
                   value={cmSymptom}
-                  onChange={(e) => setCmSymptom(e.target.value)}
+                  onChange={(e) => {
+                    setCmSymptom(e.target.value);
+                    clearFieldError('cm_symptom');
+                  }}
                   placeholder="ระบุรุ่นอุปกรณ์และอาการที่พบ เช่น โน้ตบุ๊กเปิดติดแต่ภาพไม่ขึ้นหน้าจอ, มือถือชาร์จไฟไม่เข้า..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors leading-relaxed"
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none transition-colors leading-relaxed ${
+                    fieldErrors.cm_symptom
+                      ? 'bg-red-50/50 border-red-400 focus:border-red-600'
+                      : 'bg-slate-50 border-slate-200 focus:border-slate-900'
+                  }`}
                 ></textarea>
+                {fieldErrors.cm_symptom && (
+                  <p className="text-[11px] text-red-600 font-medium">{fieldErrors.cm_symptom}</p>
+                )}
               </div>
 
               {/* 4. Optional Image URL */}
@@ -726,10 +852,20 @@ export const AboutPage: React.FC = () => {
                 <input
                   type="url"
                   value={cmImage}
-                  onChange={(e) => setCmImage(e.target.value)}
+                  onChange={(e) => {
+                    setCmImage(e.target.value);
+                    clearFieldError('cm_image');
+                  }}
                   placeholder="https://example.com/device-photo.jpg (เว้นว่างได้)"
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors"
+                  className={`w-full px-3.5 py-2 rounded-xl border text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none transition-colors ${
+                    fieldErrors.cm_image
+                      ? 'bg-red-50/50 border-red-400 focus:border-red-600'
+                      : 'bg-slate-50 border-slate-200 focus:border-slate-900'
+                  }`}
                 />
+                {fieldErrors.cm_image && (
+                  <p className="text-[11px] text-red-600 font-medium">{fieldErrors.cm_image}</p>
+                )}
               </div>
 
               {/* Submit Action */}

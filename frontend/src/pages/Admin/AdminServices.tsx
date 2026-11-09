@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Wrench,
   Plus,
@@ -34,6 +34,23 @@ export const AdminServices: React.FC = () => {
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [formSubmitting, setFormSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string>('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const modalTopRef = useRef<HTMLDivElement>(null);
+
+  const scrollToModalTop = () => {
+    setTimeout(() => {
+      modalTopRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
+  };
+
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   // Delete Confirm State
   const [deleteTarget, setDeleteTarget] = useState<Service | null>(null);
@@ -93,6 +110,7 @@ export const AdminServices: React.FC = () => {
       service_image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=600',
     });
     setFormError('');
+    setFieldErrors({});
     setModalOpen(true);
   };
 
@@ -107,6 +125,7 @@ export const AdminServices: React.FC = () => {
       service_image: service.service_image,
     });
     setFormError('');
+    setFieldErrors({});
     setModalOpen(true);
   };
 
@@ -114,36 +133,68 @@ export const AdminServices: React.FC = () => {
     e.preventDefault();
     setFormError('');
 
-    if (!form.name.trim() || form.name.trim().length < 2) {
-      setFormError('กรุณาระบุชื่อบริการ (ต้องมีอย่างน้อย 2 ตัวอักษร)');
-      return;
+    const newFieldErrors: Record<string, string> = {};
+    const errorItems: string[] = [];
+
+    const trimmedName = form.name.trim();
+    if (!trimmedName) {
+      newFieldErrors.name = 'กรุณาระบุชื่อบริการ';
+      errorItems.push('[ชื่อบริการ]: กรุณาระบุชื่อบริการ');
+    } else if (trimmedName.length < 2) {
+      newFieldErrors.name = 'ชื่อบริการต้องมีอย่างน้อย 2 ตัวอักษร';
+      errorItems.push('[ชื่อบริการ]: ต้องมีอย่างน้อย 2 ตัวอักษร');
+    } else if (trimmedName.length > 100) {
+      newFieldErrors.name = 'ชื่อบริการต้องไม่เกิน 100 ตัวอักษร';
+      errorItems.push('[ชื่อบริการ]: ต้องไม่เกิน 100 ตัวอักษร');
     }
+
     if (!form.cg_id || Number(form.cg_id) <= 0) {
-      setFormError('กรุณาเลือกหมวดหมู่บริการ');
-      return;
+      newFieldErrors.cg_id = 'กรุณาเลือกหมวดหมู่บริการ';
+      errorItems.push('[หมวดหมู่บริการ]: กรุณาเลือกหมวดหมู่บริการ');
     }
+
     if (
       form.price === undefined ||
       form.price === null ||
       String(form.price) === '' ||
       isNaN(Number(form.price))
     ) {
-      setFormError('กรุณาระบุราคาบริการเป็นตัวเลข');
-      return;
+      newFieldErrors.price = 'กรุณาระบุราคาบริการเป็นตัวเลข';
+      errorItems.push('[ราคาบริการ]: กรุณาระบุราคาบริการเป็นตัวเลข');
+    } else if (Number(form.price) < 0) {
+      newFieldErrors.price = 'ราคาบริการต้องไม่ติดลบ (ตั้งแต่ 0 บาทขึ้นไป)';
+      errorItems.push('[ราคาบริการ]: ราคาบริการต้องไม่ติดลบ (ต้องเป็น 0 บาทขึ้นไป)');
     }
-    if (Number(form.price) < 0) {
-      setFormError('ราคาบริการต้องไม่ติดลบ (ต้องเป็น 0 บาทขึ้นไป)');
-      return;
+
+    const trimmedDetail = form.detail.trim();
+    if (!trimmedDetail) {
+      newFieldErrors.detail = 'กรุณาระบุรายละเอียดบริการ';
+      errorItems.push('[รายละเอียดบริการ]: กรุณาระบุรายละเอียดบริการ');
+    } else if (trimmedDetail.length < 5) {
+      newFieldErrors.detail = 'รายละเอียดบริการต้องมีอย่างน้อย 5 ตัวอักษร';
+      errorItems.push('[รายละเอียดบริการ]: ต้องมีอย่างน้อย 5 ตัวอักษร');
     }
-    if (!form.detail.trim() || form.detail.trim().length < 5) {
-      setFormError('กรุณาระบุรายละเอียดบริการ (ต้องมีอย่างน้อย 5 ตัวอักษร)');
-      return;
+
+    const trimmedImage = form.service_image.trim();
+    if (!trimmedImage) {
+      newFieldErrors.service_image = 'กรุณาระบุลิงก์รูปภาพบริการ (Image URL)';
+      errorItems.push('[ลิงก์รูปภาพบริการ]: กรุณาระบุ URL รูปภาพบริการ');
+    } else if (trimmedImage.length > 255) {
+      newFieldErrors.service_image = 'ลิงก์รูปภาพยาวเกินกำหนด (สูงสุดไม่เกิน 255 ตัวอักษร)';
+      errorItems.push('[ลิงก์รูปภาพบริการ]: ลิงก์รูปภาพต้องไม่เกิน 255 ตัวอักษร');
+    } else if (!/^https?:\/\/.+/i.test(trimmedImage)) {
+      newFieldErrors.service_image = 'ต้องเป็นลิงก์ URL ที่ขึ้นต้นด้วย http:// หรือ https://';
+      errorItems.push('[ลิงก์รูปภาพบริการ]: รูปแบบ URL ไม่ถูกต้อง (ต้องขึ้นต้นด้วย http:// หรือ https://)');
     }
-    if (!form.service_image.trim()) {
-      setFormError('กรุณาระบุ URL รูปภาพบริการ');
+
+    if (errorItems.length > 0) {
+      setFieldErrors(newFieldErrors);
+      setFormError(`กรุณาตรวจสอบข้อมูล: ${errorItems.join(' | ')}`);
+      scrollToModalTop();
       return;
     }
 
+    setFieldErrors({});
     setFormSubmitting(true);
     try {
       if (editingService) {
@@ -151,40 +202,49 @@ export const AdminServices: React.FC = () => {
           method: 'PUT',
           body: JSON.stringify({
             ...form,
+            name: trimmedName,
+            detail: trimmedDetail,
+            service_image: trimmedImage,
             price: Number(form.price),
             cg_id: Number(form.cg_id),
           }),
         });
         if (res.success) {
           setModalOpen(false);
-          showToast(`แก้ไขบริการ "${form.name.trim()}" เรียบร้อยแล้ว`);
+          showToast(`แก้ไขบริการ "${trimmedName}" เรียบร้อยแล้ว`);
           await fetchData(false);
           await refreshCatalog(true);
         } else {
           setFormError(res.message || 'แก้ไขบริการไม่สำเร็จ');
+          scrollToModalTop();
         }
       } else {
         const res = await apiRequest('/services', {
           method: 'POST',
           body: JSON.stringify({
             ...form,
+            name: trimmedName,
+            detail: trimmedDetail,
+            service_image: trimmedImage,
             price: Number(form.price),
             cg_id: Number(form.cg_id),
           }),
         });
         if (res.success) {
           setModalOpen(false);
-          showToast(`เพิ่มบริการใหม่ "${form.name.trim()}" เรียบร้อยแล้ว`);
+          showToast(`เพิ่มบริการใหม่ "${trimmedName}" เรียบร้อยแล้ว`);
           await fetchData(false);
           await refreshCatalog(true);
         } else {
           setFormError(res.message || 'เพิ่มบริการไม่สำเร็จ');
+          scrollToModalTop();
         }
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
       setFormError(message);
       showToast(message, 'error');
+      scrollToModalTop();
     } finally {
       setFormSubmitting(false);
     }
@@ -490,6 +550,7 @@ export const AdminServices: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-backdrop"
         >
           <div
+            ref={modalTopRef}
             onClick={(e) => e.stopPropagation()}
             className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl animate-modal relative max-h-[90vh] overflow-y-auto"
           >
@@ -506,23 +567,46 @@ export const AdminServices: React.FC = () => {
             </div>
 
             {formError && (
-              <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{formError}</span>
+              <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+                <div className="space-y-1">
+                  {formError.includes(' | ') ? (
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {formError
+                        .replace(/^กรุณาตรวจสอบข้อมูล:\s*/, '')
+                        .split(' | ')
+                        .map((item, idx) => (
+                          <li key={idx}>{item}</li>
+                        ))}
+                    </ul>
+                  ) : (
+                    <span>{formError}</span>
+                  )}
+                </div>
               </div>
             )}
 
-            <form onSubmit={handleFormSubmit} className="space-y-3.5 text-xs">
+            <form onSubmit={handleFormSubmit} noValidate className="space-y-3.5 text-xs">
               <div className="space-y-1">
                 <label className="font-bold text-slate-300">ชื่อบริการ *</label>
                 <input
                   type="text"
                   required
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, name: e.target.value });
+                    clearFieldError('name');
+                  }}
                   placeholder="เช่น ซ่อมเมนบอร์ด PC เปิดไม่ติด"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                  className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none ${
+                    fieldErrors.name
+                      ? 'border-red-500 focus:border-red-400'
+                      : 'border-slate-800 focus:border-sky-500'
+                  }`}
                 />
+                {fieldErrors.name && (
+                  <p className="text-[11px] text-red-400 font-medium">{fieldErrors.name}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -530,8 +614,15 @@ export const AdminServices: React.FC = () => {
                   <label className="font-bold text-slate-300">หมวดหมู่บริการ *</label>
                   <select
                     value={form.cg_id}
-                    onChange={(e) => setForm({ ...form, cg_id: Number(e.target.value) })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 focus:outline-none focus:border-sky-500"
+                    onChange={(e) => {
+                      setForm({ ...form, cg_id: Number(e.target.value) });
+                      clearFieldError('cg_id');
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 focus:outline-none ${
+                      fieldErrors.cg_id
+                        ? 'border-red-500 focus:border-red-400'
+                        : 'border-slate-800 focus:border-sky-500'
+                    }`}
                   >
                     {categories.map((c) => (
                       <option key={c.cg_id} value={c.cg_id} className="bg-slate-900 text-slate-100">
@@ -539,6 +630,9 @@ export const AdminServices: React.FC = () => {
                       </option>
                     ))}
                   </select>
+                  {fieldErrors.cg_id && (
+                    <p className="text-[11px] text-red-400 font-medium">{fieldErrors.cg_id}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -548,9 +642,19 @@ export const AdminServices: React.FC = () => {
                     min="0"
                     required
                     value={form.price}
-                    onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 focus:outline-none focus:border-sky-500 font-mono"
+                    onChange={(e) => {
+                      setForm({ ...form, price: Number(e.target.value) });
+                      clearFieldError('price');
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 focus:outline-none font-mono ${
+                      fieldErrors.price
+                        ? 'border-red-500 focus:border-red-400'
+                        : 'border-slate-800 focus:border-sky-500'
+                    }`}
                   />
+                  {fieldErrors.price && (
+                    <p className="text-[11px] text-red-400 font-medium">{fieldErrors.price}</p>
+                  )}
                 </div>
               </div>
 
@@ -560,10 +664,20 @@ export const AdminServices: React.FC = () => {
                   rows={3}
                   required
                   value={form.detail}
-                  onChange={(e) => setForm({ ...form, detail: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, detail: e.target.value });
+                    clearFieldError('detail');
+                  }}
                   placeholder="ระบุขั้นตอนการตรวจเช็ค การรับประกัน และรายละเอียดงาน"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                  className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none ${
+                    fieldErrors.detail
+                      ? 'border-red-500 focus:border-red-400'
+                      : 'border-slate-800 focus:border-sky-500'
+                  }`}
                 ></textarea>
+                {fieldErrors.detail && (
+                  <p className="text-[11px] text-red-400 font-medium">{fieldErrors.detail}</p>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -572,10 +686,20 @@ export const AdminServices: React.FC = () => {
                   type="url"
                   required
                   value={form.service_image}
-                  onChange={(e) => setForm({ ...form, service_image: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, service_image: e.target.value });
+                    clearFieldError('service_image');
+                  }}
                   placeholder="https://images.unsplash.com/..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                  className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none ${
+                    fieldErrors.service_image
+                      ? 'border-red-500 focus:border-red-400'
+                      : 'border-slate-800 focus:border-sky-500'
+                  }`}
                 />
+                {fieldErrors.service_image && (
+                  <p className="text-[11px] text-red-400 font-medium">{fieldErrors.service_image}</p>
+                )}
               </div>
 
               <div className="flex items-center gap-2 pt-1">

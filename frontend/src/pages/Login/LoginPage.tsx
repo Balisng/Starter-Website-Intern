@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -10,11 +10,19 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ username?: string; pwd?: string }>({});
   const [loading, setLoading] = useState(false);
+  const formTopRef = useRef<HTMLDivElement>(null);
 
   const { user, login } = useAuth();
   const { showToast } = useService();
   const navigate = useNavigate();
+
+  const scrollToFormTop = () => {
+    setTimeout(() => {
+      formTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   useEffect(() => {
     if (user) {
@@ -26,11 +34,26 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    if (!username.trim() || !password) {
-      setError('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
+    const newFieldErrors: { username?: string; pwd?: string } = {};
+    const errorItems: string[] = [];
+
+    if (!username.trim()) {
+      newFieldErrors.username = 'กรุณากรอกชื่อผู้ใช้งาน (Username)';
+      errorItems.push('[ชื่อผู้ใช้งาน]: กรุณากรอกชื่อผู้ใช้งาน');
+    }
+    if (!password) {
+      newFieldErrors.pwd = 'กรุณากรอกรหัสผ่าน (Password)';
+      errorItems.push('[รหัสผ่าน]: กรุณากรอกรหัสผ่าน');
+    }
+
+    if (errorItems.length > 0) {
+      setFieldErrors(newFieldErrors);
+      setError(`กรุณาตรวจสอบข้อมูล: ${errorItems.join(' | ')}`);
+      scrollToFormTop();
       return;
     }
 
+    setFieldErrors({});
     setLoading(true);
     try {
       await login(username.trim(), password);
@@ -39,6 +62,11 @@ export const LoginPage: React.FC = () => {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
       setError(message);
+      setFieldErrors({
+        username: 'กรุณาตรวจสอบชื่อผู้ใช้งาน',
+        pwd: 'กรุณาตรวจสอบรหัสผ่าน',
+      });
+      scrollToFormTop();
     } finally {
       setLoading(false);
     }
@@ -46,7 +74,7 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-[82vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#f8fafc]">
-      <div className="w-full max-w-md space-y-6">
+      <div ref={formTopRef} className="w-full max-w-md space-y-6 scroll-mt-24">
         <div className="text-center space-y-2.5">
           <div className="w-16 h-13 rounded-2xl bg-white border border-slate-200 shadow-2xs overflow-hidden flex items-center justify-center mx-auto">
             <img
@@ -68,13 +96,13 @@ export const LoginPage: React.FC = () => {
 
         <div className="bg-white rounded-2xl p-6 sm:p-7 border border-slate-200 shadow-2xs space-y-5">
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
               <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4 text-xs">
             <div className="space-y-1.5">
               <label className="font-bold text-slate-700 block">ชื่อผู้ใช้งาน (Username)</label>
               <div className="relative">
@@ -84,11 +112,21 @@ export const LoginPage: React.FC = () => {
                   required
                   autoFocus
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, username: undefined }));
+                  }}
                   placeholder="กรอกชื่อผู้ใช้งาน"
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors"
+                  className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none transition-colors ${
+                    fieldErrors.username
+                      ? 'bg-red-50/50 border-red-400 focus:border-red-600'
+                      : 'bg-slate-50 border-slate-200 focus:border-slate-900'
+                  }`}
                 />
               </div>
+              {fieldErrors.username && (
+                <p className="text-[11px] text-red-600 font-medium">{fieldErrors.username}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -99,9 +137,16 @@ export const LoginPage: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, pwd: undefined }));
+                  }}
                   placeholder="กรอกรหัสผ่าน"
-                  className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-slate-900 transition-colors"
+                  className={`w-full pl-9 pr-9 py-2.5 rounded-xl border text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none transition-colors ${
+                    fieldErrors.pwd
+                      ? 'bg-red-50/50 border-red-400 focus:border-red-600'
+                      : 'bg-slate-50 border-slate-200 focus:border-slate-900'
+                  }`}
                 />
                 <button
                   type="button"
@@ -111,6 +156,9 @@ export const LoginPage: React.FC = () => {
                   {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
               </div>
+              {fieldErrors.pwd && (
+                <p className="text-[11px] text-red-600 font-medium">{fieldErrors.pwd}</p>
+              )}
             </div>
 
             <div className="pt-1">

@@ -3,6 +3,7 @@ import { desc, eq } from 'drizzle-orm';
 import { Request, Response } from 'express';
 import { db } from '../../config/db';
 import { NewUser, users } from '../../db/schema';
+import { resolveControllerError } from '../../middlewares/error.middleware';
 import { CreateUserInput, UpdateUserInput } from './users.schema';
 
 /**
@@ -93,7 +94,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     if (existing) {
       res.status(400).json({
         success: false,
-        message: 'Username นี้ถูกใช้งานแล้ว กรุณาเลือกชื่ออื่น',
+        message: 'กรุณาตรวจสอบข้อมูล: [ชื่อผู้ใช้งาน (Username)] ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาเลือกชื่ออื่น',
       });
       return;
     }
@@ -129,7 +130,8 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     });
   } catch (error) {
     console.error('Error creating user:', error);
-    res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการสร้างผู้ใช้งาน' });
+    const resolved = resolveControllerError(error, 'ไม่สามารถสร้างผู้ใช้งานได้');
+    res.status(resolved.status).json({ success: false, message: resolved.message });
   }
 }
 
@@ -189,7 +191,8 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     });
   } catch (error) {
     console.error('Error updating user:', error);
-    res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการแก้ไขข้อมูลผู้ใช้' });
+    const resolved = resolveControllerError(error, 'ไม่สามารถแก้ไขข้อมูลผู้ใช้ได้');
+    res.status(resolved.status).json({ success: false, message: resolved.message });
   }
 }
 
@@ -230,7 +233,8 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     });
   } catch (error) {
     console.error('Error deleting user:', error);
-    res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการลบผู้ใช้งาน' });
+    const resolved = resolveControllerError(error, 'ไม่สามารถลบผู้ใช้งานได้');
+    res.status(resolved.status).json({ success: false, message: resolved.message });
   }
 }
 

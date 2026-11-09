@@ -2,6 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import { Request, Response } from 'express';
 import { db } from '../../config/db';
 import { categories, Category } from '../../db/schema';
+import { resolveControllerError } from '../../middlewares/error.middleware';
 import { CreateCategoryInput } from './categories.schema';
 
 let categoriesCache: { data: Category[]; expiresAt: number } | null = null;
@@ -103,7 +104,8 @@ export async function createCategory(req: Request, res: Response): Promise<void>
     });
   } catch (error) {
     console.error('Error creating category:', error);
-    res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการสร้างหมวดหมู่' });
+    const resolved = resolveControllerError(error, 'ไม่สามารถสร้างหมวดหมู่ได้');
+    res.status(resolved.status).json({ success: false, message: resolved.message });
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Inbox,
@@ -63,6 +63,13 @@ export const AdminInbox: React.FC = () => {
   const [serviceValidationError, setServiceValidationError] = useState<string>('');
   const [updating, setUpdating] = useState<boolean>(false);
   const [confirmFinalizeOpen, setConfirmFinalizeOpen] = useState<boolean>(false);
+  const detailFormRef = useRef<HTMLDivElement>(null);
+
+  const scrollToDetailForm = () => {
+    setTimeout(() => {
+      detailFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<InboxMessage | null>(null);
@@ -212,6 +219,7 @@ export const AdminInbox: React.FC = () => {
       const message = err instanceof Error ? err.message : 'ไม่สามารถบันทึกข้อมูลได้';
       setServiceValidationError(message);
       showToast(message, 'error');
+      scrollToDetailForm();
     } finally {
       setUpdating(false);
     }
@@ -219,16 +227,16 @@ export const AdminInbox: React.FC = () => {
 
   // ตรวจสอบก่อนเปิดกล่องยืนยัน "ส่งมอบงานซ่อม"
   const handleInitiateFinalize = () => {
+    const missingItems: string[] = [];
     if (!updateServiceId) {
-      setServiceValidationError(
-        'กรุณาเลือก "บริการที่ดำเนินการซ่อมจริง" ก่อนกดส่งมอบงานซ่อม'
-      );
-      return;
+      missingItems.push('[รายการบริการที่ดำเนินการซ่อมจริง]: กรุณาเลือกบริการที่ดำเนินการซ่อมก่อนส่งมอบงาน');
     }
     if (user?.role === 'admin' && !updateTechnicianId) {
-      setServiceValidationError(
-        'กรุณาเลือก "ช่างผู้รับผิดชอบ" ทางด้านซ้ายก่อนกดส่งมอบงานซ่อม'
-      );
+      missingItems.push('[ช่างผู้รับผิดชอบงานซ่อม]: กรุณาเลือกช่างผู้รับผิดชอบทางด้านซ้ายก่อนส่งมอบงาน');
+    }
+    if (missingItems.length > 0) {
+      setServiceValidationError(`กรุณาตรวจสอบข้อมูลก่อนส่งมอบงาน: ${missingItems.join(' | ')}`);
+      scrollToDetailForm();
       return;
     }
     setServiceValidationError('');
@@ -269,6 +277,7 @@ export const AdminInbox: React.FC = () => {
       const message = err instanceof Error ? err.message : 'ไม่สามารถส่งมอบงานได้';
       setServiceValidationError(message);
       showToast(message, 'error');
+      scrollToDetailForm();
     } finally {
       setUpdating(false);
     }
@@ -1035,13 +1044,24 @@ export const AdminInbox: React.FC = () => {
                 </div>
 
                 {/* 2. บันทึกการซ่อม & การจัดการสถานะงานซ่อม */}
-                <div className="p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
+                <div
+                  ref={detailFormRef}
+                  className="p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4 scroll-mt-6"
+                >
                   <div className="flex items-center gap-2">
                     <MessageSquare className="w-4 h-4 text-sky-400" />
                     <h4 className="text-xs font-bold text-white uppercase tracking-wider">
                       บันทึกการซ่อมและอัปเดตสถานะงาน
                     </h4>
                   </div>
+
+                  {/* Validation Error Alert (Moved to top of form section for immediate visibility) */}
+                  {serviceValidationError && (
+                    <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      <span>{serviceValidationError}</span>
+                    </div>
+                  )}
 
                   {/* เลือกบริการที่ซ่อมจริง */}
                   <div className="space-y-1.5 text-xs">
@@ -1058,7 +1078,11 @@ export const AdminInbox: React.FC = () => {
                         setConfirmFinalizeOpen(false);
                         if (val) setServiceValidationError('');
                       }}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 text-xs focus:outline-none focus:border-sky-500 cursor-pointer disabled:opacity-50"
+                      className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border text-slate-100 text-xs focus:outline-none cursor-pointer disabled:opacity-50 ${
+                        serviceValidationError && !updateServiceId
+                          ? 'border-red-500 focus:border-red-400'
+                          : 'border-slate-800 focus:border-sky-500'
+                      }`}
                     >
                       <option value="">-- ยังไม่ระบุบริการ (อยู่ระหว่างตรวจเช็คอาการ) --</option>
                       {categories.map((cat) => {
@@ -1091,14 +1115,6 @@ export const AdminInbox: React.FC = () => {
                       className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 text-xs leading-relaxed focus:outline-none focus:border-sky-500 disabled:opacity-50"
                     ></textarea>
                   </div>
-
-                  {/* Validation Error Alert */}
-                  {serviceValidationError && (
-                    <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                      <span>{serviceValidationError}</span>
-                    </div>
-                  )}
 
                   {/* กล่องยืนยันก่อนส่งมอบงานซ่อม */}
                   {confirmFinalizeOpen && selectedServiceObj && (

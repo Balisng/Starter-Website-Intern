@@ -1,7 +1,8 @@
 import { and, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
 import { Request, Response } from 'express';
-import { db } from '../../config/db';
+import { db, ensureDatabaseReady } from '../../config/db';
 import { categories, inboxMessages, services, users } from '../../db/schema';
+import { resolveControllerError } from '../../middlewares/error.middleware';
 import { CreateInboxMessageInput, UpdateInboxStatusInput } from './inbox.schema';
 
 /**
@@ -11,6 +12,7 @@ import { CreateInboxMessageInput, UpdateInboxStatusInput } from './inbox.schema'
  */
 export async function createInboxMessage(req: Request, res: Response): Promise<void> {
   try {
+    await ensureDatabaseReady();
     const input: CreateInboxMessageInput = req.body;
 
     let validServiceId: number | null = null;
@@ -66,9 +68,10 @@ export async function createInboxMessage(req: Request, res: Response): Promise<v
     });
   } catch (error) {
     console.error('Error creating inbox message:', error);
-    res.status(500).json({
+    const resolved = resolveControllerError(error, 'ไม่สามารถส่งข้อความแจ้งซ่อมได้');
+    res.status(resolved.status).json({
       success: false,
-      message: 'เกิดข้อผิดพลาดในการส่งข้อความแจ้งซ่อม',
+      message: resolved.message,
     });
   }
 }
@@ -79,6 +82,7 @@ export async function createInboxMessage(req: Request, res: Response): Promise<v
  */
 export async function getAllInboxMessages(req: Request, res: Response): Promise<void> {
   try {
+    await ensureDatabaseReady();
     const { read_status, repair_status, search, category_id, service_id, technician_id } = req.query;
 
     const conditions = [];
@@ -180,9 +184,10 @@ export async function getAllInboxMessages(req: Request, res: Response): Promise<
     });
   } catch (error) {
     console.error('Error fetching inbox messages:', error);
-    res.status(500).json({
+    const resolved = resolveControllerError(error, 'ไม่สามารถดึงรายการข้อความแจ้งซ่อมได้');
+    res.status(resolved.status).json({
       success: false,
-      message: 'ไม่สามารถดึงรายการข้อความแจ้งซ่อมได้',
+      message: resolved.message,
     });
   }
 }
@@ -193,6 +198,7 @@ export async function getAllInboxMessages(req: Request, res: Response): Promise<
  */
 export async function getInboxMessageById(req: Request, res: Response): Promise<void> {
   try {
+    await ensureDatabaseReady();
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) {
       res.status(400).json({ success: false, message: 'รหัสข้อความไม่ถูกต้อง' });
@@ -243,9 +249,10 @@ export async function getInboxMessageById(req: Request, res: Response): Promise<
     });
   } catch (error) {
     console.error('Error fetching inbox message:', error);
-    res.status(500).json({
+    const resolved = resolveControllerError(error, 'ไม่สามารถดึงข้อมูลข้อความแจ้งซ่อมได้');
+    res.status(resolved.status).json({
       success: false,
-      message: 'เกิดข้อผิดพลาดในการดึงข้อมูลข้อความ',
+      message: resolved.message,
     });
   }
 }
@@ -256,6 +263,7 @@ export async function getInboxMessageById(req: Request, res: Response): Promise<
  */
 export async function markInboxMessageAsRead(req: Request, res: Response): Promise<void> {
   try {
+    await ensureDatabaseReady();
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) {
       res.status(400).json({ success: false, message: 'รหัสข้อความไม่ถูกต้อง' });
@@ -280,9 +288,10 @@ export async function markInboxMessageAsRead(req: Request, res: Response): Promi
     });
   } catch (error) {
     console.error('Error marking inbox message as read:', error);
-    res.status(500).json({
+    const resolved = resolveControllerError(error, 'ไม่สามารถอัปเดตสถานะการอ่านได้');
+    res.status(resolved.status).json({
       success: false,
-      message: 'เกิดข้อผิดพลาดในการอัปเดตสถานะการอ่าน',
+      message: resolved.message,
     });
   }
 }
@@ -296,6 +305,7 @@ export async function markInboxMessageAsRead(req: Request, res: Response): Promi
  */
 export async function updateInboxMessageStatus(req: Request, res: Response): Promise<void> {
   try {
+    await ensureDatabaseReady();
     const id = parseInt(req.params.id as string, 10);
     if (isNaN(id)) {
       res.status(400).json({ success: false, message: 'รหัสข้อความไม่ถูกต้อง' });
@@ -470,9 +480,10 @@ export async function updateInboxMessageStatus(req: Request, res: Response): Pro
     });
   } catch (error) {
     console.error('Error updating inbox status:', error);
-    res.status(500).json({
+    const resolved = resolveControllerError(error, 'ไม่สามารถอัปเดตสถานะงานซ่อมได้');
+    res.status(resolved.status).json({
       success: false,
-      message: 'เกิดข้อผิดพลาดในการอัปเดตสถานะงานซ่อม',
+      message: resolved.message,
     });
   }
 }
@@ -516,9 +527,10 @@ export async function deleteInboxMessage(req: Request, res: Response): Promise<v
     });
   } catch (error) {
     console.error('Error deleting inbox message:', error);
-    res.status(500).json({
+    const resolved = resolveControllerError(error, 'ไม่สามารถลบข้อความแจ้งซ่อมได้');
+    res.status(resolved.status).json({
       success: false,
-      message: 'เกิดข้อผิดพลาดในการลบข้อความ',
+      message: resolved.message,
     });
   }
 }

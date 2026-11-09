@@ -2,6 +2,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { Request, Response } from 'express';
 import { db } from '../../config/db';
 import { categories, Service, services } from '../../db/schema';
+import { resolveControllerError } from '../../middlewares/error.middleware';
 import { CreateServiceInput, UpdateServiceInput } from './services.schema';
 
 export interface ServiceWithCategory extends Service {
@@ -168,7 +169,8 @@ export async function createService(req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
     console.error('Error creating service:', error);
-    res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการเพิ่มบริการ' });
+    const resolved = resolveControllerError(error, 'ไม่สามารถเพิ่มบริการได้');
+    res.status(resolved.status).json({ success: false, message: resolved.message });
   }
 }
 
@@ -205,7 +207,7 @@ export async function updateService(req: Request, res: Response): Promise<void> 
         .limit(1);
 
       if (!category) {
-        res.status(400).json({ success: false, message: 'ไม่พบหมวดหมู่ที่ระบุ' });
+        res.status(400).json({ success: false, message: '[หมวดหมู่บริการ]: ไม่พบหมวดหมู่ที่ระบุในระบบ' });
         return;
       }
     }
@@ -225,7 +227,8 @@ export async function updateService(req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
     console.error('Error updating service:', error);
-    res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการแก้ไขบริการ' });
+    const resolved = resolveControllerError(error, 'ไม่สามารถแก้ไขบริการได้');
+    res.status(resolved.status).json({ success: false, message: resolved.message });
   }
 }
 
@@ -259,7 +262,8 @@ export async function deleteService(req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
     console.error('Error deleting service:', error);
-    res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการลบบริการ' });
+    const resolved = resolveControllerError(error, 'ไม่สามารถลบบริการได้');
+    res.status(resolved.status).json({ success: false, message: resolved.message });
   }
 }
 
