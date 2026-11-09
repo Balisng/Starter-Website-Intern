@@ -1,0 +1,280 @@
+{
+  "info": {
+    "name": "FixPlease — Electronic Repair Service API Collection",
+    "description": "ไฟล์ทดสอบ API ครบทุกโมดูล (Auth, Categories, Services, Inbox, Users, Dashboard) สำหรับโปรเจกต์ FixPlease",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "1. Auth Module",
+      "item": [
+        {
+          "name": "POST Login (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"Admin\",\n  \"pwd\": \"Admin1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "GET Current User (/auth/me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "POST Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Categories Module",
+      "item": [
+        {
+          "name": "GET All Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["categories"]
+            }
+          }
+        },
+        {
+          "name": "POST Create Category (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cg_name\": \"Tablet\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["categories"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Services Module",
+      "item": [
+        {
+          "name": "GET All Services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          }
+        },
+        {
+          "name": "POST Create Service (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cg_id\": 1,\n  \"name\": \"อัปเกรด SSD NVMe M.2\",\n  \"detail\": \"บริการเพิ่มความจุและความเร็วเครื่องคอมพิวเตอร์ด้วย SSD NVMe\",\n  \"price\": 900,\n  \"status\": true,\n  \"service_image\": \"https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?auto=format&fit=crop&w=800&q=80\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          }
+        },
+        {
+          "name": "PUT Update Service (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 1850,\n  \"status\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "1"]
+            }
+          }
+        },
+        {
+          "name": "DELETE Service (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/999",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "999"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Inbox Module",
+      "item": [
+        {
+          "name": "POST Submit Repair Request (Public)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"service_id\": 1,\n  \"cm_username\": \"คุณสมศรี ใจดี\",\n  \"cm_cel\": \"0812345678\",\n  \"cm_email\": \"somsri@gmail.com\",\n  \"cm_symptom\": \"เครื่องเปิดติดแล้วดับเองหลังจากใช้งานประมาณ 10 นาที\",\n  \"promo_code\": \"HALLOWEEN20\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/inbox",
+              "host": ["{{baseUrl}}"],
+              "path": ["inbox"]
+            }
+          }
+        },
+        {
+          "name": "GET All Inbox Tickets (Staff)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/inbox",
+              "host": ["{{baseUrl}}"],
+              "path": ["inbox"]
+            }
+          }
+        },
+        {
+          "name": "PATCH Mark Ticket as Read (Staff)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/inbox/1/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["inbox", "1", "read"]
+            }
+          }
+        },
+        {
+          "name": "PATCH Update Ticket Status (Staff)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"service_id\": 1,\n  \"technician_id\": 2,\n  \"repair_status\": \"in_progress\",\n  \"comment\": \"กำลังดำเนินการตรวจเช็คเมนบอร์ด\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/inbox/1/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["inbox", "1", "status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Users Module",
+      "item": [
+        {
+          "name": "GET All Users (Staff)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            }
+          }
+        },
+        {
+          "name": "POST Create User (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"TechManop\",\n  \"pwd\": \"Tech1234\",\n  \"u_name\": \"มานพ\",\n  \"u_surname\": \"การช่าง\",\n  \"role\": \"technician\",\n  \"cel\": \"0891112222\",\n  \"email\": \"manop@gmail.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Dashboard Module",
+      "item": [
+        {
+          "name": "GET Dashboard Stats (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard?period=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard"],
+              "query": [{ "key": "period", "value": "all" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

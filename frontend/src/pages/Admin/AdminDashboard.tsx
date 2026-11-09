@@ -67,8 +67,9 @@ export const AdminDashboard: React.FC = () => {
       } else {
         setError(res.message || 'ไม่สามารถดึงข้อมูลสถิติได้');
       }
-    } catch (err: any) {
-      setError(err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูลภาพรวม');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูลภาพรวม';
+      setError(message);
       if (isManualRefresh) {
         showToast('ไม่สามารถรีเฟรชข้อมูลได้', 'error');
       }

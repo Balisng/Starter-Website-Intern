@@ -1,10 +1,14 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { Request, Response } from 'express';
-import { db } from '../config/db';
-import { categories, services } from '../db/schema';
-import { CreateServiceInput, UpdateServiceInput } from '../validators/service.schema';
+import { db } from '../../config/db';
+import { categories, Service, services } from '../../db/schema';
+import { CreateServiceInput, UpdateServiceInput } from './services.schema';
 
-const servicesCache = new Map<string, { data: any[]; expiresAt: number }>();
+export interface ServiceWithCategory extends Service {
+  cg_name: string | null;
+}
+
+const servicesCache = new Map<string, { data: ServiceWithCategory[]; expiresAt: number }>();
 const CACHE_TTL_MS = 25_000;
 
 export function clearServicesCache(): void {
@@ -258,3 +262,4 @@ export async function deleteService(req: Request, res: Response): Promise<void> 
     res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการลบบริการ' });
   }
 }
+

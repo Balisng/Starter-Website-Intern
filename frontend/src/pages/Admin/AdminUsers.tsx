@@ -169,7 +169,7 @@ export const AdminUsers: React.FC = () => {
     setFormSubmitting(true);
     try {
       if (editingUser) {
-        const payload: any = {
+        const payload: Record<string, unknown> = {
           u_name: form.u_name.trim(),
           u_surname: form.u_surname.trim(),
           role: form.role,
@@ -214,9 +214,10 @@ export const AdminUsers: React.FC = () => {
           setFormError(res.message || 'เพิ่มผู้ใช้ไม่สำเร็จ');
         }
       }
-    } catch (err: any) {
-      setFormError(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
-      showToast(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+      setFormError(message);
+      showToast(message, 'error');
     } finally {
       setFormSubmitting(false);
     }
@@ -240,8 +241,9 @@ export const AdminUsers: React.FC = () => {
         setDeleteTarget(null);
         fetchUsers(false);
       }
-    } catch (err: any) {
-      showToast(err.message || 'ไม่สามารถลบผู้ใช้งานได้', 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'ไม่สามารถลบผู้ใช้งานได้';
+      showToast(message, 'error');
     } finally {
       setDeleting(false);
     }

@@ -49,8 +49,9 @@ async function seed() {
         .where(eq(users.username, adminUsername))
         .limit(1);
 
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
       if (existingAdmin.length === 0) {
-        const hashedPassword = await bcrypt.hash(adminPassword, 10);
         const [newAdmin] = await db
           .insert(users)
           .values({
@@ -68,7 +69,11 @@ async function seed() {
         console.log(`      - Username: ${newAdmin.username}`);
         console.log(`      - Role: ${newAdmin.role}`);
       } else {
-        console.log(`   ℹ️ Admin user "${adminUsername}" already exists (ID: ${existingAdmin[0].u_id})`);
+        await db
+          .update(users)
+          .set({ pwd: hashedPassword, role: 'admin' })
+          .where(eq(users.u_id, existingAdmin[0].u_id));
+        console.log(`   ✅ Admin user "${adminUsername}" synced (ID: ${existingAdmin[0].u_id})`);
       }
     }
 
@@ -86,8 +91,9 @@ async function seed() {
         .where(eq(users.username, techUsername))
         .limit(1);
 
+      const techHashedPwd = await bcrypt.hash(techPassword, 10);
+
       if (existingTech.length === 0) {
-        const techHashedPwd = await bcrypt.hash(techPassword, 10);
         const [newTech] = await db
           .insert(users)
           .values({
@@ -105,7 +111,11 @@ async function seed() {
         console.log(`      - Username: ${newTech.username}`);
         console.log(`      - Role: ${newTech.role}`);
       } else {
-        console.log(`   ℹ️ Technician "${techUsername}" already exists (ID: ${existingTech[0].u_id})`);
+        await db
+          .update(users)
+          .set({ pwd: techHashedPwd, role: 'technician' })
+          .where(eq(users.u_id, existingTech[0].u_id));
+        console.log(`   ✅ Technician "${techUsername}" synced (ID: ${existingTech[0].u_id})`);
       }
     }
 

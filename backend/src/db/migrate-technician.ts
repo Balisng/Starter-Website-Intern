@@ -10,12 +10,12 @@ async function migrate() {
     `;
     console.log('✅ Column "technician_id" added to "inbox_messages" successfully (or already exists)!');
 
-    const columns = await client`
+    const columns = await client<Array<{ column_name: string; data_type: string; is_nullable: string }>>`
       SELECT column_name, data_type, is_nullable 
       FROM information_schema.columns 
       WHERE table_name = 'inbox_messages';
     `;
-    console.log('📋 Current inbox_messages columns:', columns.map((c: any) => `${c.column_name} (${c.data_type}, nullable: ${c.is_nullable})`));
+    console.log('📋 Current inbox_messages columns:', columns.map((c) => `${c.column_name} (${c.data_type}, nullable: ${c.is_nullable})`));
   } catch (err) {
     console.error('❌ Migration failed:', err);
     process.exit(1);

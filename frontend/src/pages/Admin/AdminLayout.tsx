@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useService } from '../../context/ServiceContext';
 import { apiRequest } from '../../api/client';
+import type { InboxMessage } from '../../types';
 import { Navbar } from '../../components/layout/Navbar';
 import { Footer } from '../../components/layout/Footer';
 import { LoginPage } from '../Login/LoginPage';
@@ -31,7 +32,7 @@ export const AdminLayout: React.FC = () => {
   // Fetch unread active inbox messages count
   useEffect(() => {
     if (user) {
-      apiRequest<any[]>('/inbox', {
+      apiRequest<InboxMessage[]>('/inbox', {
         params: { read_status: 'unread', repair_status: 'active' },
       })
         .then((res) => {

@@ -1,3 +1,5 @@
+import type { User } from '../types';
+
 /**
  * API Fetch Client with automatic credentials (cookies) handling
  */
@@ -7,10 +9,10 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
-export async function apiRequest<T = any>(
+export async function apiRequest<T = unknown>(
   endpoint: string,
   options: RequestOptions = {}
-): Promise<{ success: boolean; data?: T; message?: string; error?: string; count?: number; user?: any }> {
+): Promise<{ success: boolean; data?: T; message?: string; error?: string; count?: number; user?: User }> {
   let url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
   if (options.params) {

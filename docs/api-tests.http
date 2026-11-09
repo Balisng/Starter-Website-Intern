@@ -1,0 +1,251 @@
+# ============================================================================
+# 🧪 FixPlease API Test Suite (REST Client / HTTP File)
+# วิธีใช้งาน: ติดตั้งส่วนเสริม "REST Client" ใน VS Code แล้วกด "Send Request" เหนือแต่ละหัวข้อ
+# ระบบใช้ HttpOnly Cookie ('auth_token') ซึ่ง REST Client จะจำและแนบไปให้อัตโนมัติหลังกด Login
+# ============================================================================
+
+@baseUrl = http://localhost:5000/api
+@adminUsername = Admin
+@adminPassword = Admin1234
+@techUsername = TechSomchai
+@techPassword = Tech1234
+
+### 0. Health Check (ตรวจสอบสถานะเซิร์ฟเวอร์และฐานข้อมูล)
+GET {{baseUrl}}/health
+Accept: application/json
+
+# ============================================================================
+# 🔐 1. AUTHENTICATION MODULE (/api/auth)
+# ============================================================================
+
+### 1.1 เข้าสู่ระบบในฐานะ Admin (จะได้รับ HttpOnly Cookie: auth_token)
+# @name loginAdmin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "pwd": "{{adminPassword}}"
+}
+
+### 1.2 เข้าสู่ระบบในฐานะ Technician (ช่างซ่อม)
+# @name loginTech
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{techUsername}}",
+  "pwd": "{{techPassword}}"
+}
+
+### 1.3 ตรวจสอบสถานะผู้ใช้งานปัจจุบันจาก Cookie Session (GET /api/auth/me)
+GET {{baseUrl}}/auth/me
+Accept: application/json
+
+### 1.4 ทดสอบเข้าสู่ระบบด้วยรหัสผ่านที่ผิด (ต้องได้ 401 Unauthorized)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "Admin",
+  "pwd": "wrong_password"
+}
+
+# ============================================================================
+# 📁 2. CATEGORIES MODULE (/api/categories)
+# ============================================================================
+
+### 2.1 ดึงหมวดหมู่บริการทั้งหมด (Public)
+GET {{baseUrl}}/categories
+Accept: application/json
+
+### 2.2 ดึงหมวดหมู่ตาม ID (Public)
+GET {{baseUrl}}/categories/1
+Accept: application/json
+
+### 2.3 เพิ่มหมวดหมู่ใหม่ (Admin Only + Zod Validation)
+POST {{baseUrl}}/categories
+Content-Type: application/json
+
+{
+  "cg_name": "Tablet & iPad"
+}
+
+# ============================================================================
+# 🛠️ 3. SERVICES MODULE (/api/services)
+# ============================================================================
+
+### 3.1 ดึงรายการบริการซ่อมทั้งหมด (Public)
+GET {{baseUrl}}/services
+Accept: application/json
+
+### 3.2 ดึงรายการบริการเฉพาะที่เปิดรับซ่อมตามหมวดหมู่ (Public)
+GET {{baseUrl}}/services?cg_id=1&status=true
+Accept: application/json
+
+### 3.3 ดึงข้อมูลบริการตาม ID (Public)
+GET {{baseUrl}}/services/1
+Accept: application/json
+
+### 3.4 เพิ่มบริการซ่อมใหม่ (Admin Only + Zod Validation)
+POST {{baseUrl}}/services
+Content-Type: application/json
+
+{
+  "cg_id": 1,
+  "name": "อัปเกรด SSD NVMe M.2 พร้อมย้ายระบบปฏิบัติการ",
+  "detail": "บริการเพิ่มความจุและความเร็วเครื่องคอมพิวเตอร์ด้วย SSD NVMe พร้อมโคลนข้อมูลเดิมครบถ้วน",
+  "price": 900,
+  "status": true,
+  "service_image": "https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?auto=format&fit=crop&w=800&q=80"
+}
+
+### 3.5 แก้ไขรายการบริการ (Admin Only)
+PUT {{baseUrl}}/services/1
+Content-Type: application/json
+
+{
+  "price": 1850,
+  "status": true
+}
+
+### 3.6 ทดสอบส่งข้อมูลบริการผิดรูปแบบ (ต้องถูก Zod ตีกลับ 400 Bad Request)
+POST {{baseUrl}}/services
+Content-Type: application/json
+
+{
+  "cg_id": 1,
+  "name": "A",
+  "detail": "สั้น",
+  "price": -500,
+  "service_image": ""
+}
+
+# ============================================================================
+# 📩 4. INBOX & REPAIR TICKETS MODULE (/api/inbox)
+# ============================================================================
+
+### 4.1 ลูกค้าส่งแบบฟอร์มแจ้งซ่อมจากหน้าเว็บพร้อมโค้ดส่วนลด 20% (Public + Rate Limit)
+POST {{baseUrl}}/inbox
+Content-Type: application/json
+
+{
+  "service_id": 1,
+  "cm_username": "คุณสมศรี ใจดี",
+  "cm_cel": "0812345678",
+  "cm_email": "somsri@gmail.com",
+  "cm_symptom": "เครื่องคอมพิวเตอร์เปิดติดแล้วดับเองหลังจากใช้งานประมาณ 10 นาที มีเสียงพัดลมดังผิดปกติ",
+  "cm_image": "https://images.unsplash.com/photo-1588702547919-26089e690ecc?auto=format&fit=crop&w=800&q=80",
+  "promo_code": "HALLOWEEN20"
+}
+
+### 4.2 ลูกค้าส่งแบบฟอร์มแจ้งซ่อมกรณีไม่แน่ใจอาการ (service_id เป็น null)
+POST {{baseUrl}}/inbox
+Content-Type: application/json
+
+{
+  "service_id": null,
+  "cm_username": "คุณวิชัย รักดี",
+  "cm_cel": "0912345678",
+  "cm_email": "wichai@hotmail.com",
+  "cm_symptom": "โน้ตบุ๊กชาร์จไฟไม่เข้า ไฟสถานะข้างเครื่องไม่ติด อยากให้ช่างช่วยประเมินอาการก่อนครับ",
+  "cm_image": null
+}
+
+### 4.3 ทดสอบกรอกเบอร์โทรและอีเมลผิดรูปแบบ (ต้องถูก Zod ตีกลับ 400 Bad Request)
+POST {{baseUrl}}/inbox
+Content-Type: application/json
+
+{
+  "cm_username": "ทดสอบ",
+  "cm_cel": "012345",
+  "cm_email": "invalid@hot.dog",
+  "cm_symptom": "เครื่องเปิดไม่ติดครับ"
+}
+
+### 4.4 ดึงรายการใบแจ้งซ่อมทั้งหมด (Staff Only: Admin & Technician)
+GET {{baseUrl}}/inbox?repair_status=active
+Accept: application/json
+
+### 4.5 ดูรายละเอียดใบแจ้งซ่อมตาม ID (Staff Only)
+GET {{baseUrl}}/inbox/1
+Accept: application/json
+
+### 4.6 เปลี่ยนสถานะใบแจ้งซ่อมเป็น "อ่านแล้ว" (Staff Only)
+PATCH {{baseUrl}}/inbox/1/read
+Content-Type: application/json
+
+### 4.7 มอบหมายงานให้ช่างและปรับสถานะเป็น "กำลังดำเนินการซ่อม (in_progress)"
+PATCH {{baseUrl}}/inbox/1/status
+Content-Type: application/json
+
+{
+  "service_id": 1,
+  "technician_id": 2,
+  "repair_status": "in_progress",
+  "comment": "กำลังตรวจเช็คภาคจ่ายไฟและทำความสะอาดชุดระบายความร้อน"
+}
+
+### 4.8 ปิดงานซ่อมและส่งมอบงาน "ซ่อมเสร็จแล้ว (completed)" (บันทึก final_price และ completed_at อัตโนมัติ)
+PATCH {{baseUrl}}/inbox/1/status
+Content-Type: application/json
+
+{
+  "service_id": 1,
+  "technician_id": 2,
+  "repair_status": "completed",
+  "comment": "เปลี่ยนซิลิโคนและซ่อมภาคจ่ายไฟเรียบร้อย ทดสอบ Full Load ผ่านปกติ"
+}
+
+# ============================================================================
+# 👥 5. USERS MANAGEMENT MODULE (/api/users)
+# ============================================================================
+
+### 5.1 ดึงรายชื่อผู้ใช้งานทั้งหมด (Staff Only)
+GET {{baseUrl}}/users
+Accept: application/json
+
+### 5.2 สร้างบัญชีช่างซ่อมคนใหม่ (Admin Only + bcrypt Password Hashing)
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "username": "TechManop",
+  "pwd": "Tech1234",
+  "u_name": "มานพ",
+  "u_surname": "การช่าง",
+  "role": "technician",
+  "cel": "0891112222",
+  "email": "manop@gmail.com"
+}
+
+### 5.3 แก้ไขข้อมูลผู้ใช้งาน (Admin Only)
+PUT {{baseUrl}}/users/2
+Content-Type: application/json
+
+{
+  "u_name": "สมชาย",
+  "u_surname": "ยอดฝีมือ",
+  "cel": "0899876543"
+}
+
+# ============================================================================
+# 📊 6. DASHBOARD ANALYTICS MODULE (/api/dashboard)
+# ============================================================================
+
+### 6.1 ดึงสถิติภาพรวมทั้งหมด (Admin Only)
+GET {{baseUrl}}/dashboard?period=all
+Accept: application/json
+
+### 6.2 ดึงสถิติภาพรวมรายสัปดาห์ ย้อนหลัง 7 วัน (Admin Only)
+GET {{baseUrl}}/dashboard?period=weekly
+Accept: application/json
+
+### 6.3 ดึงสถิติภาพรวมรายเดือน ย้อนหลัง 30 วัน (Admin Only)
+GET {{baseUrl}}/dashboard?period=monthly
+Accept: application/json
+
+### 6.4 ออกจากระบบและล้าง HttpOnly Cookie
+POST {{baseUrl}}/auth/logout
+Accept: application/json
+

@@ -1,9 +1,10 @@
 import { asc, eq } from 'drizzle-orm';
 import { Request, Response } from 'express';
-import { db } from '../config/db';
-import { categories } from '../db/schema';
+import { db } from '../../config/db';
+import { categories, Category } from '../../db/schema';
+import { CreateCategoryInput } from './categories.schema';
 
-let categoriesCache: { data: any[]; expiresAt: number } | null = null;
+let categoriesCache: { data: Category[]; expiresAt: number } | null = null;
 const CACHE_TTL_MS = 30_000;
 
 export function clearCategoriesCache(): void {
@@ -86,15 +87,11 @@ export async function getCategoryById(req: Request, res: Response): Promise<void
  */
 export async function createCategory(req: Request, res: Response): Promise<void> {
   try {
-    const { cg_name } = req.body;
-    if (!cg_name || typeof cg_name !== 'string' || cg_name.trim().length === 0) {
-      res.status(400).json({ success: false, message: 'กรุณาระบุชื่อหมวดหมู่' });
-      return;
-    }
+    const input: CreateCategoryInput = req.body;
 
     const [newCategory] = await db
       .insert(categories)
-      .values({ cg_name: cg_name.trim() })
+      .values({ cg_name: input.cg_name })
       .returning();
 
     clearCategoriesCache();
@@ -109,3 +106,4 @@ export async function createCategory(req: Request, res: Response): Promise<void>
     res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการสร้างหมวดหมู่' });
   }
 }
+

@@ -21,7 +21,6 @@ import {
   AlertTriangle,
   RefreshCw,
   Tag,
-  Percent,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
 import { useService } from '../../context/ServiceContext';

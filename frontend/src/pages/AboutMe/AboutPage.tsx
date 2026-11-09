@@ -213,9 +213,10 @@ export const AboutPage: React.FC = () => {
         setErrorMsg(res.message || 'ไม่สามารถส่งข้อความได้ กรุณาตรวจสอบข้อมูลอีกครั้ง');
         showToast(res.message || 'ไม่สามารถส่งข้อมูลได้', 'error');
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่อีกครั้ง');
-      showToast(err.message || 'เกิดข้อผิดพลาดในการส่งข้อมูล', 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่อีกครั้ง';
+      setErrorMsg(message);
+      showToast(message, 'error');
     } finally {
       setSubmitting(false);
     }

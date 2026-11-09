@@ -1,15 +1,15 @@
 import { Router } from 'express';
+import { authenticate } from '../../middlewares/auth.middleware';
+import { requireAdmin } from '../../middlewares/role.middleware';
+import { validateBody } from '../../middlewares/validate.middleware';
 import {
   createService,
   deleteService,
   getAllServices,
   getServiceById,
   updateService,
-} from '../controllers/services.controller';
-import { authenticate } from '../middlewares/auth.middleware';
-import { requireAdmin } from '../middlewares/role.middleware';
-import { validateBody } from '../middlewares/validate.middleware';
-import { createServiceSchema, updateServiceSchema } from '../validators/service.schema';
+} from './services.controller';
+import { createServiceSchema, updateServiceSchema } from './services.schema';
 
 const router = Router();
 
@@ -23,3 +23,4 @@ router.put('/:id', authenticate, requireAdmin, validateBody(updateServiceSchema)
 router.delete('/:id', authenticate, requireAdmin, deleteService);
 
 export default router;
+

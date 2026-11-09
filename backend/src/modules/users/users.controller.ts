@@ -1,13 +1,13 @@
 import bcrypt from 'bcryptjs';
 import { desc, eq } from 'drizzle-orm';
 import { Request, Response } from 'express';
-import { db } from '../config/db';
-import { users } from '../db/schema';
-import { CreateUserInput, UpdateUserInput } from '../validators/user.schema';
+import { db } from '../../config/db';
+import { NewUser, users } from '../../db/schema';
+import { CreateUserInput, UpdateUserInput } from './users.schema';
 
 /**
  * GET /api/users
- * ดึงรายชื่อผู้ใช้ทั้งหมด (เฉพาะ Admin) โดยไม่ส่งฟิลด์รหัสผ่านกลับไป
+ * ดึงรายชื่อผู้ใช้ทั้งหมด (เฉพาะ Admin และ ช่าง) โดยไม่ส่งฟิลด์รหัสผ่านกลับไป
  */
 export async function getAllUsers(_req: Request, res: Response): Promise<void> {
   try {
@@ -98,7 +98,7 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // แฮชรหัสผ่าน
+    // แฮชรหัสผ่านด้วย bcrypt
     const hashedPassword = await bcrypt.hash(input.pwd, 10);
 
     const [newUser] = await db
@@ -158,8 +158,8 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // สร้าง payload สำหรับ update
-    const updateData: any = { ...input };
+    // สร้าง payload สำหรับ update แบบ Type-safe
+    const updateData: Partial<NewUser> = { ...input };
 
     // ถ้ามีการเปลี่ยนรหัสผ่าน ให้แฮชใหม่
     if (input.pwd && input.pwd.trim() !== '') {
@@ -233,3 +233,4 @@ export async function deleteUser(req: Request, res: Response): Promise<void> {
     res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาดในการลบผู้ใช้งาน' });
   }
 }
+

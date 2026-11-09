@@ -1,7 +1,7 @@
 import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { Request, Response } from 'express';
-import { db } from '../config/db';
-import { categories, inboxMessages, services, users } from '../db/schema';
+import { db } from '../../config/db';
+import { categories, inboxMessages, services, users } from '../../db/schema';
 
 /**
  * GET /api/dashboard
@@ -38,7 +38,7 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
 
     const categoryNameExpr = sql<string>`coalesce(${categories.cg_name}, 'อื่นๆ / บริการที่ยกเลิก')`;
 
-    // รันทั้ง 6 Queries พร้อมกันในครั้งเดียว (Parallel Execution) เพื่อลด Latency บน Vercel
+    // รันทั้ง 7 Queries พร้อมกันในครั้งเดียว (Parallel Execution) เพื่อลด Latency บน Vercel
     const [
       completedItems,
       activeItems,
@@ -223,3 +223,4 @@ export async function getDashboardStats(req: Request, res: Response): Promise<vo
     });
   }
 }
+

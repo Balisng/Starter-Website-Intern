@@ -36,8 +36,9 @@ export const LoginPage: React.FC = () => {
       await login(username.trim(), password);
       showToast('เข้าสู่ระบบสำเร็จ');
       navigate('/admin', { replace: true });
-    } catch (err: any) {
-      setError(err.message || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+      setError(message);
     } finally {
       setLoading(false);
     }

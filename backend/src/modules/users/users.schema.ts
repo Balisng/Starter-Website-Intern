@@ -1,6 +1,5 @@
 import { z } from 'zod';
-
-import { PHONE_REGEX, EMAIL_REGEX } from './inbox.schema';
+import { EMAIL_REGEX, PHONE_REGEX } from '../inbox/inbox.schema';
 
 export const createUserSchema = z.object({
   username: z
@@ -59,3 +58,4 @@ export const updateUserSchema = z.object({
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+

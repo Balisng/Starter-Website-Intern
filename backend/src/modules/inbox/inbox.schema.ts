@@ -53,3 +53,4 @@ export const updateInboxStatusSchema = z.object({
 
 export type CreateInboxMessageInput = z.infer<typeof createInboxMessageSchema>;
 export type UpdateInboxStatusInput = z.infer<typeof updateInboxStatusSchema>;
+

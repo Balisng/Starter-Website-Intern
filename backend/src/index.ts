@@ -5,7 +5,7 @@ import express, { Request, Response } from 'express';
 import { testDbConnection } from './config/db';
 import { ALLOWED_ORIGINS, PORT } from './config/env';
 import { errorHandler } from './middlewares/error.middleware';
-import apiRoutes from './routes';
+import apiRoutes from './modules';
 
 const app = express();
 

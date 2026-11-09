@@ -28,3 +28,4 @@ export const updateServiceSchema = createServiceSchema.partial();
 
 export type CreateServiceInput = z.infer<typeof createServiceSchema>;
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;
+

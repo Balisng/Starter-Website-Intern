@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { getDashboardStats } from '../controllers/dashboard.controller';
-import { authenticate } from '../middlewares/auth.middleware';
-import { requireAdmin } from '../middlewares/role.middleware';
+import { authenticate } from '../../middlewares/auth.middleware';
+import { requireAdmin } from '../../middlewares/role.middleware';
+import { getDashboardStats } from './dashboard.controller';
 
 const router = Router();
 
@@ -9,3 +9,4 @@ const router = Router();
 router.get('/', authenticate, requireAdmin, getDashboardStats);
 
 export default router;
+

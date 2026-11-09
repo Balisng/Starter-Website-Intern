@@ -1,4 +1,8 @@
 import { Router } from 'express';
+import { authenticate } from '../../middlewares/auth.middleware';
+import { inboxSubmitRateLimiter } from '../../middlewares/rateLimit.middleware';
+import { requireAdmin, requireStaff } from '../../middlewares/role.middleware';
+import { validateBody } from '../../middlewares/validate.middleware';
 import {
   createInboxMessage,
   deleteInboxMessage,
@@ -6,12 +10,8 @@ import {
   getInboxMessageById,
   markInboxMessageAsRead,
   updateInboxMessageStatus,
-} from '../controllers/inbox.controller';
-import { authenticate } from '../middlewares/auth.middleware';
-import { inboxSubmitRateLimiter } from '../middlewares/rateLimit.middleware';
-import { requireAdmin, requireStaff } from '../middlewares/role.middleware';
-import { validateBody } from '../middlewares/validate.middleware';
-import { createInboxMessageSchema, updateInboxStatusSchema } from '../validators/inbox.schema';
+} from './inbox.controller';
+import { createInboxMessageSchema, updateInboxStatusSchema } from './inbox.schema';
 
 const router = Router();
 
@@ -34,3 +34,4 @@ router.patch(
 router.delete('/:id', authenticate, requireAdmin, deleteInboxMessage);
 
 export default router;
+

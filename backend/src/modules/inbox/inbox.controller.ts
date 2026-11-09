@@ -1,8 +1,8 @@
 import { and, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
 import { Request, Response } from 'express';
-import { db } from '../config/db';
-import { categories, inboxMessages, services, users } from '../db/schema';
-import { CreateInboxMessageInput, UpdateInboxStatusInput } from '../validators/inbox.schema';
+import { db } from '../../config/db';
+import { categories, inboxMessages, services, users } from '../../db/schema';
+import { CreateInboxMessageInput, UpdateInboxStatusInput } from './inbox.schema';
 
 /**
  * POST /api/inbox
@@ -522,3 +522,4 @@ export async function deleteInboxMessage(req: Request, res: Response): Promise<v
     });
   }
 }
+

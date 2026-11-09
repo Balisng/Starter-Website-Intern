@@ -2,11 +2,11 @@ import bcrypt from 'bcryptjs';
 import { eq, ilike } from 'drizzle-orm';
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { db } from '../config/db';
-import { JWT_SECRET } from '../config/env';
-import { users } from '../db/schema';
-import { resetRateLimit } from '../middlewares/rateLimit.middleware';
-import { AuthUserPayload } from '../types/auth';
+import { db } from '../../config/db';
+import { JWT_SECRET } from '../../config/env';
+import { users } from '../../db/schema';
+import { resetRateLimit } from '../../middlewares/rateLimit.middleware';
+import { AuthUserPayload } from '../../types/auth';
 
 const COOKIE_NAME = 'auth_token';
 
@@ -35,21 +35,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 
     // ตรวจสอบรหัสผ่านที่เข้ารหัสด้วย bcrypt
-    let isPasswordValid = await bcrypt.compare(pwd, user.pwd);
-
-    // รองรับรหัสผ่านสำหรับ Admin (รองรับทั้ง Admin1234 และ 1234)
-    if (!isPasswordValid && user.role === 'admin') {
-      if (pwd === 'Admin1234' || pwd === '1234') {
-        isPasswordValid = true;
-      }
-    }
-
-    // รองรับรหัสผ่านสำหรับบัญชีช่างเทคนิค
-    if (!isPasswordValid && user.role === 'technician') {
-      if (pwd === 'Tech1234' || pwd === '1234') {
-        isPasswordValid = true;
-      }
-    }
+    const isPasswordValid = await bcrypt.compare(pwd, user.pwd);
 
     if (!isPasswordValid) {
       res.status(401).json({
@@ -197,3 +183,4 @@ export async function getMe(req: Request, res: Response): Promise<void> {
     });
   }
 }
+

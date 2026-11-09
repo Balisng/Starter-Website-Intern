@@ -125,7 +125,7 @@ export const AdminServices: React.FC = () => {
     if (
       form.price === undefined ||
       form.price === null ||
-      form.price === ('' as any) ||
+      String(form.price) === '' ||
       isNaN(Number(form.price))
     ) {
       setFormError('กรุณาระบุราคาบริการเป็นตัวเลข');
@@ -181,9 +181,10 @@ export const AdminServices: React.FC = () => {
           setFormError(res.message || 'เพิ่มบริการไม่สำเร็จ');
         }
       }
-    } catch (err: any) {
-      setFormError(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
-      showToast(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
+      setFormError(message);
+      showToast(message, 'error');
     } finally {
       setFormSubmitting(false);
     }
@@ -202,8 +203,9 @@ export const AdminServices: React.FC = () => {
         await fetchData(false);
         await refreshCatalog(true);
       }
-    } catch (err: any) {
-      showToast(err.message || 'ไม่สามารถลบบริการได้', 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'ไม่สามารถลบบริการได้';
+      showToast(message, 'error');
     } finally {
       setDeleting(false);
     }

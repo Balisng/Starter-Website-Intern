@@ -1,7 +1,11 @@
 import { NextFunction, Request, Response } from 'express';
 
+export interface AppError extends Error {
+  status?: number;
+}
+
 export function errorHandler(
-  err: any,
+  err: AppError,
   _req: Request,
   res: Response,
   _next: NextFunction

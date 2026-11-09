@@ -72,7 +72,7 @@ export const ServiceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setCatalogLoading(true);
     }
     try {
-      const params: Record<string, any> = {};
+      const params: Record<string, string | number | boolean> = {};
       if (forceFresh) params.fresh = 1;
 
       const [catRes, srvRes] = await Promise.all([

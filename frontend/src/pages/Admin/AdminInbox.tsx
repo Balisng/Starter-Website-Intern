@@ -24,7 +24,6 @@ import {
   RefreshCw,
   PlayCircle,
   Tag,
-  Percent,
 } from 'lucide-react';
 import { apiRequest } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -60,7 +59,6 @@ export const AdminInbox: React.FC = () => {
   const [selectedMsg, setSelectedMsg] = useState<InboxMessage | null>(null);
   const [updateServiceId, setUpdateServiceId] = useState<number | null>(null);
   const [updateTechnicianId, setUpdateTechnicianId] = useState<number | null>(null);
-  const [updateStatus, setUpdateStatus] = useState<RepairStatus>('pending');
   const [updateComment, setUpdateComment] = useState<string>('');
   const [serviceValidationError, setServiceValidationError] = useState<string>('');
   const [updating, setUpdating] = useState<boolean>(false);
@@ -113,7 +111,7 @@ export const AdminInbox: React.FC = () => {
       setLoading(true);
     }
     try {
-      const params: any = {
+      const params: Record<string, string | number | boolean> = {
         repair_status: statusTab,
       };
       if (readFilter !== 'all') params.read_status = readFilter;
@@ -155,7 +153,6 @@ export const AdminInbox: React.FC = () => {
     setSelectedMsg(msg);
     setUpdateServiceId(msg.service_id ?? null);
     setUpdateTechnicianId(msg.technician_id ?? null);
-    setUpdateStatus(msg.repair_status === 'in_progress' ? 'in_progress' : 'pending');
     setUpdateComment(msg.comment || '');
     setServiceValidationError('');
     setConfirmFinalizeOpen(false);
@@ -169,7 +166,6 @@ export const AdminInbox: React.FC = () => {
         setSelectedMsg({ ...res.data, is_read: true });
         setUpdateServiceId(res.data.service_id ?? null);
         setUpdateTechnicianId(res.data.technician_id ?? null);
-        setUpdateStatus(res.data.repair_status === 'in_progress' ? 'in_progress' : 'pending');
         setMessages((prev) =>
           prev.map((m) => (m.cm_id === msg.cm_id ? { ...m, is_read: true } : m))
         );
@@ -186,7 +182,7 @@ export const AdminInbox: React.FC = () => {
     setUpdating(true);
 
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         repair_status: targetStatus,
         comment: updateComment.trim() || null,
         service_id: updateServiceId || null,
@@ -195,7 +191,7 @@ export const AdminInbox: React.FC = () => {
         payload.technician_id = updateTechnicianId;
       }
 
-      const res = await apiRequest<{ success: boolean; data: any }>(
+      const res = await apiRequest<InboxMessage>(
         `/inbox/${selectedMsg.cm_id}/status`,
         {
           method: 'PATCH',
@@ -212,9 +208,10 @@ export const AdminInbox: React.FC = () => {
         setSelectedMsg(null);
         fetchMessages(false);
       }
-    } catch (err: any) {
-      setServiceValidationError(err.message || 'ไม่สามารถบันทึกข้อมูลได้');
-      showToast(err.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'ไม่สามารถบันทึกข้อมูลได้';
+      setServiceValidationError(message);
+      showToast(message, 'error');
     } finally {
       setUpdating(false);
     }
@@ -245,7 +242,7 @@ export const AdminInbox: React.FC = () => {
     setServiceValidationError('');
 
     try {
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         repair_status: 'completed',
         comment: updateComment.trim() || null,
         service_id: updateServiceId,
@@ -254,7 +251,7 @@ export const AdminInbox: React.FC = () => {
         payload.technician_id = updateTechnicianId;
       }
 
-      const res = await apiRequest<{ success: boolean; data: any }>(
+      const res = await apiRequest<InboxMessage>(
         `/inbox/${selectedMsg.cm_id}/status`,
         {
           method: 'PATCH',
@@ -268,9 +265,10 @@ export const AdminInbox: React.FC = () => {
         showToast('ส่งมอบงานซ่อมเรียบร้อยแล้ว (ย้ายไปยังหน้าประวัติการซ่อม)');
         fetchMessages(false);
       }
-    } catch (err: any) {
-      setServiceValidationError(err.message || 'ไม่สามารถส่งมอบงานได้');
-      showToast(err.message || 'ไม่สามารถส่งมอบงานได้', 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'ไม่สามารถส่งมอบงานได้';
+      setServiceValidationError(message);
+      showToast(message, 'error');
     } finally {
       setUpdating(false);
     }
@@ -293,8 +291,9 @@ export const AdminInbox: React.FC = () => {
         }
         fetchMessages(false);
       }
-    } catch (err: any) {
-      showToast(err.message || 'ไม่สามารถลบข้อความได้', 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'ไม่สามารถลบข้อความได้';
+      showToast(message, 'error');
     } finally {
       setDeleting(false);
     }
